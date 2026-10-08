@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fileMenu = NSMenu(title: String(localized: "File"))
         fileMenu.addItem(withTitle: String(localized: "Add Feed…"), action: #selector(MainWindowController.addFeed(_:)), keyEquivalent: "n")
         fileMenu.addItem(withTitle: String(localized: "Import OPML…"), action: #selector(MainWindowController.importOPML(_:)), keyEquivalent: "")
+        fileMenu.addItem(withTitle: String(localized: "Export OPML…"), action: #selector(MainWindowController.exportOPML(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "Refresh"), action: #selector(MainWindowController.refresh(_:)), keyEquivalent: "r")
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: String(localized: "Close Window"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")

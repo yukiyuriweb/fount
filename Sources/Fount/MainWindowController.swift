@@ -301,6 +301,18 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         store.refresh()
     }
 
+    @objc func exportOPML(_ sender: Any?) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "opml") ?? .xml]
+        panel.nameFieldStringValue = "Fount.opml"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try store.opml().write(to: url, options: .atomic)
+        } catch {
+            showError(error, title: String(localized: "Couldn't export the subscriptions"))
+        }
+    }
+
     @objc func refresh(_ sender: Any?) { store.refresh() }
 
     @objc func filterChanged(_ sender: NSSegmentedControl) {
@@ -366,10 +378,10 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         UserDefaults.standard.set(Double(webView.pageZoom), forKey: "pageZoom")
     }
 
-    private func showError(_ error: Error) {
+    private func showError(_ error: Error, title: String = String(localized: "Couldn't add the feed")) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = String(localized: "Couldn't add the feed")
+        alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.beginSheetModal(for: window)
     }
@@ -387,6 +399,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             return clickedFeed != nil
         case #selector(refresh(_:)):
             return !store.isRefreshing
+        case #selector(exportOPML(_:)):
+            return !store.feeds.isEmpty
         default:
             break
         }
