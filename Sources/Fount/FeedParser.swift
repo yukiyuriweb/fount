@@ -22,10 +22,13 @@ final class FeedParser: NSObject, XMLParserDelegate {
     private var root: String?
     private var feed = ParsedFeed()
     private var item: ParsedItem?
+    private var base: URL?
 
     /// Returns nil when `data` isn't a feed (for example an HTML page).
-    static func parse(_ data: Data) -> ParsedFeed? {
+    /// Relative links, which Atom allows, are resolved against `base`.
+    static func parse(_ data: Data, base: URL? = nil) -> ParsedFeed? {
         let delegate = FeedParser()
+        delegate.base = base
         let parser = XMLParser(data: data)
         parser.shouldProcessNamespaces = true
         parser.delegate = delegate
@@ -65,6 +68,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
     func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if name == "item" || name == "entry", var done = item {
+            done.link = resolve(done.link)
             if done.id.isEmpty { done.id = done.link }
             if !done.link.isEmpty { feed.items.append(done) }
             item = nil
@@ -86,6 +90,11 @@ final class FeedParser: NSObject, XMLParserDelegate {
         }
         stack.removeLast()
         text = ""
+    }
+
+    private func resolve(_ link: String) -> String {
+        guard let base, !link.isEmpty, let url = URL(string: link, relativeTo: base) else { return link }
+        return url.absoluteString
     }
 
     private var parent: String? { stack.count >= 2 ? stack[stack.count - 2] : nil }
@@ -148,15 +157,15 @@ enum FeedError: LocalizedError {
 
 enum Fetcher {
     static func fetch(_ url: URL) async throws -> ParsedFeed {
-        let (data, _) = try await load(url)
-        guard let feed = FeedParser.parse(data) else { throw FeedError.notFound }
+        let (data, final) = try await load(url)
+        guard let feed = FeedParser.parse(data, base: final) else { throw FeedError.notFound }
         return feed
     }
 
     /// Accepts a feed URL or a web page that links to its feed, and returns the feed's URL.
     static func discover(_ url: URL) async throws -> (URL, ParsedFeed) {
         let (data, final) = try await load(url)
-        if let feed = FeedParser.parse(data) { return (final, feed) }
+        if let feed = FeedParser.parse(data, base: final) { return (final, feed) }
         let html = String(decoding: data, as: UTF8.self)
         for href in feedLinks(in: html) {
             guard let link = URL(string: href, relativeTo: final)?.absoluteURL else { continue }
