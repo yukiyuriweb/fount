@@ -212,11 +212,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         if table === feedTable {
             let row = feedTable.selectedRow
             selectedFeed = row > 0 ? feeds[row - 1].url : nil
+            // A new scope no longer keeps the open, read article listed under Unread.
+            selectedKey = nil
             reloadArticles()
             articleTable.scrollRowToVisible(0)
             // Open the top article right away (selecting it opens it below), or clear the page if there is none.
             if visible.isEmpty {
-                selectedKey = nil
                 showPlaceholder()
             } else {
                 articleTable.selectRowIndexes([0], byExtendingSelection: false)
