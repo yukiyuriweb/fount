@@ -309,7 +309,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         do {
             try store.opml().write(to: url, options: .atomic)
         } catch {
-            showError(error)
+            showError(error, title: String(localized: "Couldn't export the subscriptions"))
         }
     }
 
@@ -378,10 +378,10 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         UserDefaults.standard.set(Double(webView.pageZoom), forKey: "pageZoom")
     }
 
-    private func showError(_ error: Error) {
+    private func showError(_ error: Error, title: String = String(localized: "Couldn't add the feed")) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = String(localized: "Couldn't add the feed")
+        alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.beginSheetModal(for: window)
     }

@@ -49,6 +49,7 @@
 "Add" = "追加";
 "Cancel" = "キャンセル";
 "Couldn't add the feed" = "フィードを追加できませんでした";
+"Couldn't export the subscriptions" = "購読リストを書き出せませんでした";
 "Unsubscribe from “%@”?" = "「%@」の購読をやめますか？";
 "Its articles are removed too." = "このフィードの記事も削除されます。";
 "Unsubscribe" = "購読をやめる";
