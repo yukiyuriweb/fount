@@ -58,6 +58,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sortMenu.addItem(withTitle: String(localized: "Ascending"), action: #selector(MainWindowController.setFeedSortOrder(_:)), keyEquivalent: "").tag = 0
         sortMenu.addItem(withTitle: String(localized: "Descending"), action: #selector(MainWindowController.setFeedSortOrder(_:)), keyEquivalent: "").tag = 1
         viewMenu.addItem(withTitle: String(localized: "Sort Feeds By"), action: nil, keyEquivalent: "").submenu = sortMenu
+        let articleSortMenu = NSMenu(title: String(localized: "Sort Articles"))
+        articleSortMenu.addItem(withTitle: String(localized: "Newest First"), action: #selector(MainWindowController.sortArticles(_:)), keyEquivalent: "").tag = 0
+        articleSortMenu.addItem(withTitle: String(localized: "Oldest First"), action: #selector(MainWindowController.sortArticles(_:)), keyEquivalent: "").tag = 1
+        viewMenu.addItem(withTitle: String(localized: "Sort Articles"), action: nil, keyEquivalent: "").submenu = articleSortMenu
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: String(localized: "Zoom In"), action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
         viewMenu.addItem(withTitle: String(localized: "Zoom Out"), action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")

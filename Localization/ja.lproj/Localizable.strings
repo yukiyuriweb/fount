@@ -23,6 +23,9 @@
 "Latest Article" = "最新記事の日付";
 "Ascending" = "昇順";
 "Descending" = "降順";
+"Sort Articles" = "記事の並び順";
+"Newest First" = "新しい順";
+"Oldest First" = "古い順";
 "Zoom In" = "拡大";
 "Zoom Out" = "縮小";
 "Actual Size" = "実際のサイズ";
