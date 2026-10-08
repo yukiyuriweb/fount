@@ -214,6 +214,13 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             selectedFeed = row > 0 ? feeds[row - 1].url : nil
             reloadArticles()
             articleTable.scrollRowToVisible(0)
+            // Open the top article right away (selecting it opens it below), or clear the page if there is none.
+            if visible.isEmpty {
+                selectedKey = nil
+                showPlaceholder()
+            } else {
+                articleTable.selectRowIndexes([0], byExtendingSelection: false)
+            }
         } else if articleTable.selectedRow >= 0 {
             open(visible[articleTable.selectedRow])
         }
