@@ -20,8 +20,9 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var loadedKey: String?
     private var visible: [Article] = []
     private var unreadOnly = UserDefaults.standard.bool(forKey: "unreadOnly")
-    /// Sidebar order: by title (the default) or in the order feeds were added.
-    private var sortByTitle = UserDefaults.standard.string(forKey: "feedSort") != "added"
+    /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
+    private enum FeedSort: String, CaseIterable { case title, added, latest }
+    private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
     private var sortDescending = UserDefaults.standard.bool(forKey: "feedSortDescending")
     /// `store.feeds` in sidebar order; row 0 is All Articles, so feed rows are offset by one.
     private var feeds: [Feed] = []
@@ -127,7 +128,17 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private func storeChanged() {
         reloading = true
         feeds = store.feeds
-        if sortByTitle { feeds.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending } }
+        switch feedSort {
+        case .title:
+            feeds.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .added:
+            break
+        case .latest:
+            // Ascending puts the feed with the oldest newest article, or none, first.
+            var latest: [String: Date] = [:]
+            for a in store.articles where latest[a.feed] == nil { latest[a.feed] = a.date }  // newest first
+            feeds.sort { latest[$0.url, default: .distantPast] < latest[$1.url, default: .distantPast] }
+        }
         if sortDescending { feeds.reverse() }
         feedTable.reloadData()
         let row = selectedFeed.flatMap { url in feeds.firstIndex { $0.url == url }.map { $0 + 1 } } ?? 0
@@ -369,10 +380,9 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     @objc func zoomOut(_ sender: Any?) { setZoom(webView.pageZoom / 1.1) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
 
-    /// Tag 0 sorts by title, 1 by date added.
     @objc func sortFeeds(_ sender: NSMenuItem) {
-        sortByTitle = sender.tag == 0
-        UserDefaults.standard.set(sortByTitle ? "title" : "added", forKey: "feedSort")
+        feedSort = FeedSort.allCases[sender.tag]
+        UserDefaults.standard.set(feedSort.rawValue, forKey: "feedSort")
         storeChanged()
     }
 
@@ -401,7 +411,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         case #selector(toggleUnreadOnly(_:)):
             item.state = unreadOnly ? .on : .off
         case #selector(sortFeeds(_:)):
-            item.state = (item.tag == 0) == sortByTitle ? .on : .off
+            item.state = FeedSort.allCases[item.tag] == feedSort ? .on : .off
         case #selector(setFeedSortOrder(_:)):
             item.state = (item.tag == 1) == sortDescending ? .on : .off
         case #selector(openInBrowser(_:)), #selector(copyLink(_:)):
