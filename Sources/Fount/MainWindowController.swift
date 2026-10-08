@@ -24,6 +24,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private enum FeedSort: String, CaseIterable { case title, added, latest }
     private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
     private var sortDescending = UserDefaults.standard.bool(forKey: "feedSortDescending")
+    /// The article list is newest first unless this is set.
+    private var oldestFirst = UserDefaults.standard.bool(forKey: "articlesOldestFirst")
     /// `store.feeds` in sidebar order; row 0 is All Articles, so feed rows are offset by one.
     private var feeds: [Feed] = []
     /// Set while tables are reloaded, so restoring the selection doesn't count as the user's choice.
@@ -161,6 +163,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
                 // Keep the open article listed after it turns read.
                 && (!unreadOnly || !$0.read || $0.key == selectedKey)
         }
+        if oldestFirst { visible.reverse() }  // the store keeps articles newest first
         reloading = true
         articleTable.reloadData()
         if let key = selectedKey, let row = visible.firstIndex(where: { $0.key == key }) {
@@ -419,6 +422,14 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         storeChanged()
     }
 
+    /// Tag 0 is newest first, 1 oldest first.
+    @objc func sortArticles(_ sender: NSMenuItem) {
+        oldestFirst = sender.tag == 1
+        UserDefaults.standard.set(oldestFirst, forKey: "articlesOldestFirst")
+        reloadArticles()
+        articleTable.scrollRowToVisible(max(articleTable.selectedRow, 0))
+    }
+
     private func setZoom(_ zoom: CGFloat) {
         webView.pageZoom = max(0.5, min(3, zoom))
         UserDefaults.standard.set(Double(webView.pageZoom), forKey: "pageZoom")
@@ -438,6 +449,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             item.state = unreadOnly ? .on : .off
         case #selector(sortFeeds(_:)):
             item.state = FeedSort.allCases[item.tag] == feedSort ? .on : .off
+        case #selector(sortArticles(_:)):
+            item.state = (item.tag == 1) == oldestFirst ? .on : .off
         case #selector(setFeedSortOrder(_:)):
             item.state = (item.tag == 1) == sortDescending ? .on : .off
         case #selector(openInBrowser(_:)), #selector(copyLink(_:)):
