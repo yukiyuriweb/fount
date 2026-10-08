@@ -4,6 +4,13 @@ struct Feed: Codable {
     var url: String
     var title: String
     var siteURL: String?
+    /// Refreshes in a row that failed as if the feed were gone (see `Fetcher.isPermanent`); nil after a success.
+    var failures: Int?
+
+    /// Failures in a row after which a feed is flagged as probably gone.
+    static let deadAfter = 3
+
+    var looksDead: Bool { (failures ?? 0) >= Self.deadAfter }
 }
 
 struct Article: Codable {
@@ -121,9 +128,12 @@ final class Store {
                     case .success(let parsed):
                         if !parsed.title.isEmpty { feeds[i].title = parsed.title }
                         feeds[i].siteURL = parsed.siteURL ?? feeds[i].siteURL
+                        feeds[i].failures = nil
                         errors[url] = nil
                         merge(parsed, into: url)
                     case .failure(let error):
+                        // Brief outages neither count nor break the run.
+                        if Fetcher.isPermanent(error) { feeds[i].failures = (feeds[i].failures ?? 0) + 1 }
                         errors[url] = error.localizedDescription
                     }
                     changed()

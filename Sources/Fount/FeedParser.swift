@@ -174,6 +174,19 @@ enum Fetcher {
         throw FeedError.notFound
     }
 
+    /// Whether `error` suggests the feed is gone, rather than briefly unreachable.
+    static func isPermanent(_ error: Error) -> Bool {
+        switch error {
+        case FeedError.notFound: return true
+        case FeedError.http(let code): return code == 404 || code == 410
+        case let error as URLError:
+            return [.cannotFindHost, .dnsLookupFailed, .cannotConnectToHost, .httpTooManyRedirects,
+                    .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+                    .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid].contains(error.code)
+        default: return false
+        }
+    }
+
     private static func load(_ url: URL) async throws -> (Data, URL) {
         let request = URLRequest(url: url, timeoutInterval: 30)
         let (data, response) = try await URLSession.shared.data(for: request)

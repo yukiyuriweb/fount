@@ -173,11 +173,11 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             let cell = tableView.makeView(withIdentifier: Self.feedColumn, owner: nil) as? FeedCell ?? FeedCell()
             if row == 0 {
                 cell.show(title: String(localized: "All Articles"), symbol: "tray.full",
-                          unread: store.totalUnread, error: nil)
+                          unread: store.totalUnread, error: nil, dead: false)
             } else {
                 let feed = store.feeds[row - 1]
                 cell.show(title: feed.title, symbol: "dot.radiowaves.up.forward",
-                          unread: store.unreadCounts[feed.url] ?? 0, error: store.errors[feed.url])
+                          unread: store.unreadCounts[feed.url] ?? 0, error: store.errors[feed.url], dead: feed.looksDead)
             }
             return cell
         }
@@ -528,13 +528,20 @@ final class FeedCell: NSTableCellView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func show(title text: String, symbol: String, unread: Int, error: String?) {
+    /// `dead` takes precedence over `error`: the feed has failed as if gone several refreshes in a row.
+    func show(title text: String, symbol: String, unread: Int, error: String?, dead: Bool) {
         title.stringValue = text
         count.stringValue = unread > 0 ? "\(unread)" : ""
-        icon.image = NSImage(systemSymbolName: error == nil ? symbol : "exclamationmark.triangle",
-                             accessibilityDescription: nil)
-        icon.contentTintColor = error == nil ? nil : .systemOrange
-        toolTip = error
+        if dead {
+            icon.image = NSImage(systemSymbolName: "xmark.octagon", accessibilityDescription: nil)
+            icon.contentTintColor = .systemRed
+            toolTip = [String(localized: "This feed may no longer exist."), error].compactMap { $0 }.joined(separator: "\n")
+        } else {
+            icon.image = NSImage(systemSymbolName: error == nil ? symbol : "exclamationmark.triangle",
+                                 accessibilityDescription: nil)
+            icon.contentTintColor = error == nil ? nil : .systemOrange
+            toolTip = error
+        }
     }
 }
 
