@@ -20,6 +20,11 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var loadedKey: String?
     private var visible: [Article] = []
     private var unreadOnly = UserDefaults.standard.bool(forKey: "unreadOnly")
+    /// Sidebar order: by title (the default) or in the order feeds were added.
+    private var sortByTitle = UserDefaults.standard.string(forKey: "feedSort") != "added"
+    private var sortDescending = UserDefaults.standard.bool(forKey: "feedSortDescending")
+    /// `store.feeds` in sidebar order; row 0 is All Articles, so feed rows are offset by one.
+    private var feeds: [Feed] = []
     /// Set while tables are reloaded, so restoring the selection doesn't count as the user's choice.
     private var reloading = false
     private var adding = false
@@ -121,8 +126,11 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     private func storeChanged() {
         reloading = true
+        feeds = store.feeds
+        if sortByTitle { feeds.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending } }
+        if sortDescending { feeds.reverse() }
         feedTable.reloadData()
-        let row = selectedFeed.flatMap { url in store.feeds.firstIndex { $0.url == url }.map { $0 + 1 } } ?? 0
+        let row = selectedFeed.flatMap { url in feeds.firstIndex { $0.url == url }.map { $0 + 1 } } ?? 0
         if selectedFeed != nil && row == 0 { selectedFeed = nil }  // the feed was removed
         feedTable.selectRowIndexes([row], byExtendingSelection: false)
         reloading = false
@@ -165,7 +173,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     // MARK: Tables
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        tableView === feedTable ? store.feeds.count + 1 : visible.count
+        tableView === feedTable ? feeds.count + 1 : visible.count
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -175,7 +183,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
                 cell.show(title: String(localized: "All Articles"), symbol: "tray.full",
                           unread: store.totalUnread, error: nil)
             } else {
-                let feed = store.feeds[row - 1]
+                let feed = feeds[row - 1]
                 cell.show(title: feed.title, symbol: "dot.radiowaves.up.forward",
                           unread: store.unreadCounts[feed.url] ?? 0, error: store.errors[feed.url])
             }
@@ -192,7 +200,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         let table = notification.object as! NSTableView
         if table === feedTable {
             let row = feedTable.selectedRow
-            selectedFeed = row > 0 ? store.feeds[row - 1].url : nil
+            selectedFeed = row > 0 ? feeds[row - 1].url : nil
             reloadArticles()
             articleTable.scrollRowToVisible(0)
         } else if articleTable.selectedRow >= 0 {
@@ -217,7 +225,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     /// The feed the sidebar's context menu was opened on, or else the selected one.
     private var clickedFeed: String? {
         let row = feedTable.clickedRow >= 0 ? feedTable.clickedRow : feedTable.selectedRow
-        return row > 0 ? store.feeds[row - 1].url : nil
+        return row > 0 ? feeds[row - 1].url : nil
     }
 
     // MARK: Keyboard
@@ -361,6 +369,20 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     @objc func zoomOut(_ sender: Any?) { setZoom(webView.pageZoom / 1.1) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
 
+    /// Tag 0 sorts by title, 1 by date added.
+    @objc func sortFeeds(_ sender: NSMenuItem) {
+        sortByTitle = sender.tag == 0
+        UserDefaults.standard.set(sortByTitle ? "title" : "added", forKey: "feedSort")
+        storeChanged()
+    }
+
+    /// Tag 0 is ascending, 1 descending.
+    @objc func setFeedSortOrder(_ sender: NSMenuItem) {
+        sortDescending = sender.tag == 1
+        UserDefaults.standard.set(sortDescending, forKey: "feedSortDescending")
+        storeChanged()
+    }
+
     private func setZoom(_ zoom: CGFloat) {
         webView.pageZoom = max(0.5, min(3, zoom))
         UserDefaults.standard.set(Double(webView.pageZoom), forKey: "pageZoom")
@@ -378,6 +400,10 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         switch item.action {
         case #selector(toggleUnreadOnly(_:)):
             item.state = unreadOnly ? .on : .off
+        case #selector(sortFeeds(_:)):
+            item.state = (item.tag == 0) == sortByTitle ? .on : .off
+        case #selector(setFeedSortOrder(_:)):
+            item.state = (item.tag == 1) == sortDescending ? .on : .off
         case #selector(openInBrowser(_:)), #selector(copyLink(_:)):
             return currentArticle != nil
         case #selector(toggleRead(_:)):
