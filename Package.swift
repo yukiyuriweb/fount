@@ -2,9 +2,9 @@
 import PackageDescription
 
 let package = Package(
-    name: "Rill",
+    name: "Fount",
     platforms: [.macOS(.v13)],
     targets: [
-        .executableTarget(name: "Rill", path: "Sources/Rill")
+        .executableTarget(name: "Fount", path: "Sources/Fount")
     ]
 )

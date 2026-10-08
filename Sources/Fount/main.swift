@@ -23,10 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
 
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: String(localized: "About Rill"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: String(localized: "About Fount"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: String(localized: "Hide Rill"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        appMenu.addItem(withTitle: String(localized: "Quit Rill"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: String(localized: "Hide Fount"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: String(localized: "Quit Fount"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         main.addItem(withTitle: "", action: nil, keyEquivalent: "").submenu = appMenu
 
         let fileMenu = NSMenu(title: String(localized: "File"))

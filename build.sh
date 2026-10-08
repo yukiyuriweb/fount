@@ -1,12 +1,12 @@
 #!/bin/sh
-# Builds Rill.app into ./build
+# Builds Fount.app into ./build
 set -e
 cd "$(dirname "$0")"
 swift build -c release
-APP=build/Rill.app
+APP=build/Fount.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/Rill "$APP/Contents/MacOS/Rill"
+cp .build/release/Fount "$APP/Contents/MacOS/Fount"
 
 # App icon
 ICONSET=.build/AppIcon.iconset
@@ -25,11 +25,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Rill</string>
+    <key>CFBundleName</key><string>Fount</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key><array><string>en</string><string>ja</string></array>
-    <key>CFBundleIdentifier</key><string>local.rill</string>
-    <key>CFBundleExecutable</key><string>Rill</string>
+    <key>CFBundleIdentifier</key><string>local.fount</string>
+    <key>CFBundleExecutable</key><string>Fount</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1</string>

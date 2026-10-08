@@ -67,7 +67,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         split.splitView.autosaveName = "MainSplit"
 
         window.contentViewController = split
-        window.title = "Rill"
+        window.title = "Fount"
         window.toolbarStyle = .unified
         let toolbar = NSToolbar(identifier: "Main")
         toolbar.delegate = self

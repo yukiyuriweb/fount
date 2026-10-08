@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-Rill is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dependencies, no Xcode project). Articles are shown as their original web pages in a `WKWebView`, so sites like Zenn and Qiita render exactly as in Safari, code blocks included.
+Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dependencies, no Xcode project). Articles are shown as their original web pages in a `WKWebView`, so sites like Zenn and Qiita render exactly as in Safari, code blocks included.
 
 ## Build and run
 
-- `./build.sh` builds a release binary, then assembles `build/Rill.app`, adds the icon and ad-hoc signs it.
+- `./build.sh` builds a release binary, then assembles `build/Fount.app`, adds the icon and ad-hoc signs it.
 - `swift build -c release` alone is enough to check that the code compiles.
 - The app icon is drawn by `scripts/make-icon.swift`; `build.sh` regenerates it on every build. Don't commit image files for it.
 - Swift language mode is 5 (`swift-tools-version:5.9`). `main.swift` wraps app startup in `MainActor.assumeIsolated`.
@@ -29,10 +29,11 @@ Rill is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no depe
 ## Verifying changes
 
 - Screen capture is usually unavailable to the agent. To check the UI, temporarily add a hook that renders the window with `cacheDisplay(in:to:)` and the page with `WKWebView.takeSnapshot` to PNGs and quits, run the binary, inspect the images, then remove the hook before committing. `cacheDisplay` doesn't draw the web view's content, hence the separate snapshot.
-- To test parsing without the UI, compile `Sources/Rill/FeedParser.swift` together with a throwaway `main.swift` outside the repo using `swiftc`, and run it against real feeds: Zenn (RSS 2.0), Qiita (Atom) and Hatena Bookmark (RSS 1.0) cover the three formats.
-- A test run writes to the real `~/Library/Application Support/Rill/state.json`; leave it as you found it.
+- To test parsing without the UI, compile `Sources/Fount/FeedParser.swift` together with a throwaway `main.swift` outside the repo using `swiftc`, and run it against real feeds: Zenn (RSS 2.0), Qiita (Atom) and Hatena Bookmark (RSS 1.0) cover the three formats.
+- A test run writes to the real `~/Library/Application Support/Fount/state.json`; leave it as you found it.
 
 ## Background
 
+- The name means a spring or source, as in "a fount of ideas". It replaced the working name Rill before the first merge. Its closeness to "font" was considered and accepted.
 - Built to replace Reeder Classic (paid) and NetNewsWire, whose reader view didn't show Zenn and Qiita code blocks properly.
 - Features deliberately left out so far: folders, sync, full-text search, content blocking, and a reader view.

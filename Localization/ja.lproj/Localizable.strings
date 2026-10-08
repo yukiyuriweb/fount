@@ -1,7 +1,7 @@
 /* Menus */
-"About Rill" = "Rill について";
-"Hide Rill" = "Rill を隠す";
-"Quit Rill" = "Rill を終了";
+"About Fount" = "Fount について";
+"Hide Fount" = "Fount を隠す";
+"Quit Fount" = "Fount を終了";
 "File" = "ファイル";
 "Add Feed…" = "フィードを追加…";
 "Import OPML…" = "OPML を読み込む…";

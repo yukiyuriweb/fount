@@ -1,12 +1,12 @@
-# Rill
+# Fount
 
 A lightweight, native macOS RSS reader that shows every article as its original web page.
 
-Many readers re-render articles in their own reader view, which breaks code blocks and layouts on sites such as Zenn and Qiita. Rill loads the page itself in WebKit, so it looks exactly as it does in Safari.
+Many readers re-render articles in their own reader view, which breaks code blocks and layouts on sites such as Zenn and Qiita. Fount loads the page itself in WebKit, so it looks exactly as it does in Safari.
 
 - Three panes: feeds, articles, and the article's web page
 - RSS 2.0, RSS 1.0 (RDF) and Atom
-- Paste a page URL (e.g. `https://zenn.dev/topics/swift`) and Rill finds its feed
+- Paste a page URL (e.g. `https://zenn.dev/topics/swift`) and Fount finds its feed
 - Import subscriptions from OPML (e.g. exported from NetNewsWire)
 - Refreshes on launch and every 30 minutes; unread count in the Dock
 - Written in Swift with AppKit and WebKit only — no Electron, no dependencies
@@ -22,7 +22,7 @@ Many readers re-render articles in their own reader view, which breaks code bloc
 ./build.sh
 ```
 
-This produces `build/Rill.app`. Move it to `/Applications` if you like.
+This produces `build/Fount.app`. Move it to `/Applications` if you like.
 
 ## Usage
 
@@ -31,7 +31,7 @@ This produces `build/Rill.app`. Move it to `/Applications` if you like.
 - ⌘K marks all articles in the current feed as read. ⇧⌘U shows unread articles only.
 - ⌘-click a link in the page to open it in your default browser. ⌘+ / ⌘- zoom the page.
 
-Subscriptions and articles are stored in `~/Library/Application Support/Rill/state.json`.
+Subscriptions and articles are stored in `~/Library/Application Support/Fount/state.json`.
 
 ## License
 

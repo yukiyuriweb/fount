@@ -43,7 +43,7 @@ final class Store {
 
     init() {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Rill")
+            .appendingPathComponent("Fount")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         file = dir.appendingPathComponent("state.json")
         if let data = try? Data(contentsOf: file), let state = try? JSONDecoder().decode(State.self, from: data) {
