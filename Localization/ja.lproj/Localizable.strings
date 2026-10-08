@@ -17,6 +17,12 @@
 "Select All" = "すべてを選択";
 "View" = "表示";
 "Unread Only" = "未読のみ";
+"Sort Feeds By" = "フィードの並び順";
+"Title" = "タイトル";
+"Date Added" = "登録順";
+"Latest Article" = "最新記事の日付";
+"Ascending" = "昇順";
+"Descending" = "降順";
 "Zoom In" = "拡大";
 "Zoom Out" = "縮小";
 "Actual Size" = "実際のサイズ";

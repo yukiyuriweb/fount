@@ -20,6 +20,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var loadedKey: String?
     private var visible: [Article] = []
     private var unreadOnly = UserDefaults.standard.bool(forKey: "unreadOnly")
+    /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
+    private enum FeedSort: String, CaseIterable { case title, added, latest }
+    private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
+    private var sortDescending = UserDefaults.standard.bool(forKey: "feedSortDescending")
+    /// `store.feeds` in sidebar order; row 0 is All Articles, so feed rows are offset by one.
+    private var feeds: [Feed] = []
     /// Set while tables are reloaded, so restoring the selection doesn't count as the user's choice.
     private var reloading = false
     private var adding = false
@@ -121,8 +127,21 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     private func storeChanged() {
         reloading = true
+        feeds = store.feeds
+        switch feedSort {
+        case .title:
+            feeds.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .added:
+            break
+        case .latest:
+            // Ascending puts the feed with the oldest newest article, or none, first.
+            var latest: [String: Date] = [:]
+            for a in store.articles where latest[a.feed] == nil { latest[a.feed] = a.date }  // newest first
+            feeds.sort { latest[$0.url, default: .distantPast] < latest[$1.url, default: .distantPast] }
+        }
+        if sortDescending { feeds.reverse() }
         feedTable.reloadData()
-        let row = selectedFeed.flatMap { url in store.feeds.firstIndex { $0.url == url }.map { $0 + 1 } } ?? 0
+        let row = selectedFeed.flatMap { url in feeds.firstIndex { $0.url == url }.map { $0 + 1 } } ?? 0
         if selectedFeed != nil && row == 0 { selectedFeed = nil }  // the feed was removed
         feedTable.selectRowIndexes([row], byExtendingSelection: false)
         reloading = false
@@ -165,7 +184,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     // MARK: Tables
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        tableView === feedTable ? store.feeds.count + 1 : visible.count
+        tableView === feedTable ? feeds.count + 1 : visible.count
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -175,7 +194,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
                 cell.show(title: String(localized: "All Articles"), symbol: "tray.full",
                           unread: store.totalUnread, error: nil, dead: false)
             } else {
-                let feed = store.feeds[row - 1]
+                let feed = feeds[row - 1]
                 cell.show(title: feed.title, symbol: "dot.radiowaves.up.forward",
                           unread: store.unreadCounts[feed.url] ?? 0, error: store.errors[feed.url], dead: feed.looksDead)
             }
@@ -192,7 +211,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         let table = notification.object as! NSTableView
         if table === feedTable {
             let row = feedTable.selectedRow
-            selectedFeed = row > 0 ? store.feeds[row - 1].url : nil
+            selectedFeed = row > 0 ? feeds[row - 1].url : nil
             reloadArticles()
             articleTable.scrollRowToVisible(0)
         } else if articleTable.selectedRow >= 0 {
@@ -217,7 +236,13 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     /// The feed the sidebar's context menu was opened on, or else the selected one.
     private var clickedFeed: String? {
         let row = feedTable.clickedRow >= 0 ? feedTable.clickedRow : feedTable.selectedRow
-        return row > 0 ? store.feeds[row - 1].url : nil
+        return row > 0 ? feeds[row - 1].url : nil
+    }
+
+    /// The feed a sidebar context-menu item was built for, or else `clickedFeed`. The item keeps the URL
+    /// because a refresh can re-sort the sidebar while the menu is open, moving another feed under `clickedRow`.
+    private func feed(from sender: Any?) -> String? {
+        (sender as? NSMenuItem)?.representedObject as? String ?? clickedFeed
     }
 
     // MARK: Keyboard
@@ -346,17 +371,17 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     }
 
     @objc func markAllRead(_ sender: Any?) {
-        store.markAllRead(feed: sender is NSMenuItem && feedTable.clickedRow >= 0 ? clickedFeed : selectedFeed)
+        store.markAllRead(feed: sender is NSMenuItem && feedTable.clickedRow >= 0 ? feed(from: sender) : selectedFeed)
     }
 
     @objc func copyFeedURL(_ sender: Any?) {
-        guard let url = clickedFeed else { return }
+        guard let url = feed(from: sender) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url, forType: .string)
     }
 
     @objc func unsubscribe(_ sender: Any?) {
-        guard let url = clickedFeed, let feed = store.feed(url), let window else { return }
+        guard let url = feed(from: sender), let feed = store.feed(url), let window else { return }
         let alert = NSAlert()
         alert.messageText = String(localized: "Unsubscribe from “\(feed.title)”?")
         alert.informativeText = String(localized: "Its articles are removed too.")
@@ -372,6 +397,19 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     @objc func zoomIn(_ sender: Any?) { setZoom(webView.pageZoom * 1.1) }
     @objc func zoomOut(_ sender: Any?) { setZoom(webView.pageZoom / 1.1) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
+
+    @objc func sortFeeds(_ sender: NSMenuItem) {
+        feedSort = FeedSort.allCases[sender.tag]
+        UserDefaults.standard.set(feedSort.rawValue, forKey: "feedSort")
+        storeChanged()
+    }
+
+    /// Tag 0 is ascending, 1 descending.
+    @objc func setFeedSortOrder(_ sender: NSMenuItem) {
+        sortDescending = sender.tag == 1
+        UserDefaults.standard.set(sortDescending, forKey: "feedSortDescending")
+        storeChanged()
+    }
 
     private func setZoom(_ zoom: CGFloat) {
         webView.pageZoom = max(0.5, min(3, zoom))
@@ -390,6 +428,10 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         switch item.action {
         case #selector(toggleUnreadOnly(_:)):
             item.state = unreadOnly ? .on : .off
+        case #selector(sortFeeds(_:)):
+            item.state = FeedSort.allCases[item.tag] == feedSort ? .on : .off
+        case #selector(setFeedSortOrder(_:)):
+            item.state = (item.tag == 1) == sortDescending ? .on : .off
         case #selector(openInBrowser(_:)), #selector(copyLink(_:)):
             return currentArticle != nil
         case #selector(toggleRead(_:)):
@@ -427,11 +469,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         menu.removeAllItems()
         if menu === feedTable.menu {
             guard feedTable.clickedRow >= 0 else { return }
-            menu.addItem(withTitle: String(localized: "Mark All as Read"), action: #selector(markAllRead(_:)), keyEquivalent: "")
+            let url = clickedFeed
+            menu.addItem(withTitle: String(localized: "Mark All as Read"), action: #selector(markAllRead(_:)), keyEquivalent: "").representedObject = url
             guard feedTable.clickedRow > 0 else { return }
-            menu.addItem(withTitle: String(localized: "Copy Feed URL"), action: #selector(copyFeedURL(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: String(localized: "Copy Feed URL"), action: #selector(copyFeedURL(_:)), keyEquivalent: "").representedObject = url
             menu.addItem(.separator())
-            menu.addItem(withTitle: String(localized: "Unsubscribe…"), action: #selector(unsubscribe(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: String(localized: "Unsubscribe…"), action: #selector(unsubscribe(_:)), keyEquivalent: "").representedObject = url
         } else {
             guard articleTable.clickedRow >= 0 else { return }
             menu.addItem(withTitle: String(localized: "Open in Browser"), action: #selector(openInBrowser(_:)), keyEquivalent: "")

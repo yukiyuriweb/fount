@@ -50,6 +50,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let viewMenu = NSMenu(title: String(localized: "View"))
         viewMenu.addItem(withTitle: String(localized: "Unread Only"), action: #selector(MainWindowController.toggleUnreadOnly(_:)), keyEquivalent: "u").keyEquivalentModifierMask = [.command, .shift]
+        let sortMenu = NSMenu(title: String(localized: "Sort Feeds By"))
+        sortMenu.addItem(withTitle: String(localized: "Title"), action: #selector(MainWindowController.sortFeeds(_:)), keyEquivalent: "").tag = 0
+        sortMenu.addItem(withTitle: String(localized: "Date Added"), action: #selector(MainWindowController.sortFeeds(_:)), keyEquivalent: "").tag = 1
+        sortMenu.addItem(withTitle: String(localized: "Latest Article"), action: #selector(MainWindowController.sortFeeds(_:)), keyEquivalent: "").tag = 2
+        sortMenu.addItem(.separator())
+        sortMenu.addItem(withTitle: String(localized: "Ascending"), action: #selector(MainWindowController.setFeedSortOrder(_:)), keyEquivalent: "").tag = 0
+        sortMenu.addItem(withTitle: String(localized: "Descending"), action: #selector(MainWindowController.setFeedSortOrder(_:)), keyEquivalent: "").tag = 1
+        viewMenu.addItem(withTitle: String(localized: "Sort Feeds By"), action: nil, keyEquivalent: "").submenu = sortMenu
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: String(localized: "Zoom In"), action: #selector(MainWindowController.zoomIn(_:)), keyEquivalent: "+")
         viewMenu.addItem(withTitle: String(localized: "Zoom Out"), action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")
