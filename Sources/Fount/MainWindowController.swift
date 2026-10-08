@@ -239,6 +239,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         return row > 0 ? feeds[row - 1].url : nil
     }
 
+    /// The feed a sidebar context-menu item was built for, or else `clickedFeed`. The item keeps the URL
+    /// because a refresh can re-sort the sidebar while the menu is open, moving another feed under `clickedRow`.
+    private func feed(from sender: Any?) -> String? {
+        (sender as? NSMenuItem)?.representedObject as? String ?? clickedFeed
+    }
+
     // MARK: Keyboard
 
     private func handleKey(_ event: NSEvent) -> Bool {
@@ -353,17 +359,17 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     }
 
     @objc func markAllRead(_ sender: Any?) {
-        store.markAllRead(feed: sender is NSMenuItem && feedTable.clickedRow >= 0 ? clickedFeed : selectedFeed)
+        store.markAllRead(feed: sender is NSMenuItem && feedTable.clickedRow >= 0 ? feed(from: sender) : selectedFeed)
     }
 
     @objc func copyFeedURL(_ sender: Any?) {
-        guard let url = clickedFeed else { return }
+        guard let url = feed(from: sender) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url, forType: .string)
     }
 
     @objc func unsubscribe(_ sender: Any?) {
-        guard let url = clickedFeed, let feed = store.feed(url), let window else { return }
+        guard let url = feed(from: sender), let feed = store.feed(url), let window else { return }
         let alert = NSAlert()
         alert.messageText = String(localized: "Unsubscribe from “\(feed.title)”?")
         alert.informativeText = String(localized: "Its articles are removed too.")
@@ -449,11 +455,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         menu.removeAllItems()
         if menu === feedTable.menu {
             guard feedTable.clickedRow >= 0 else { return }
-            menu.addItem(withTitle: String(localized: "Mark All as Read"), action: #selector(markAllRead(_:)), keyEquivalent: "")
+            let url = clickedFeed
+            menu.addItem(withTitle: String(localized: "Mark All as Read"), action: #selector(markAllRead(_:)), keyEquivalent: "").representedObject = url
             guard feedTable.clickedRow > 0 else { return }
-            menu.addItem(withTitle: String(localized: "Copy Feed URL"), action: #selector(copyFeedURL(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: String(localized: "Copy Feed URL"), action: #selector(copyFeedURL(_:)), keyEquivalent: "").representedObject = url
             menu.addItem(.separator())
-            menu.addItem(withTitle: String(localized: "Unsubscribe…"), action: #selector(unsubscribe(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: String(localized: "Unsubscribe…"), action: #selector(unsubscribe(_:)), keyEquivalent: "").representedObject = url
         } else {
             guard articleTable.clickedRow >= 0 else { return }
             menu.addItem(withTitle: String(localized: "Open in Browser"), action: #selector(openInBrowser(_:)), keyEquivalent: "")
