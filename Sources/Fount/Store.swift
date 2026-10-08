@@ -161,6 +161,28 @@ final class Store {
         }
     }
 
+    /// Every subscription as an OPML document, for importing into another reader.
+    func opml() -> Data {
+        func escape(_ s: String) -> String {
+            s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
+        }
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <opml version="2.0">
+            <head><title>Fount</title></head>
+            <body>
+
+            """
+        for feed in feeds {
+            let title = escape(feed.title)
+            let site = feed.siteURL.map { " htmlUrl=\"\(escape($0))\"" } ?? ""
+            xml += "<outline type=\"rss\" text=\"\(title)\" title=\"\(title)\" xmlUrl=\"\(escape(feed.url))\"\(site)/>\n"
+        }
+        xml += "</body>\n</opml>\n"
+        return Data(xml.utf8)
+    }
+
     // MARK: Saving
 
     private func changed() {

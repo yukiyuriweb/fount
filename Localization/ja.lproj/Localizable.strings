@@ -5,6 +5,7 @@
 "File" = "ファイル";
 "Add Feed…" = "フィードを追加…";
 "Import OPML…" = "OPML を読み込む…";
+"Export OPML…" = "OPML を書き出す…";
 "Refresh" = "更新";
 "Close Window" = "ウインドウを閉じる";
 "Edit" = "編集";
