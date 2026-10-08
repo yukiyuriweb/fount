@@ -55,3 +55,4 @@
 /* Errors */
 "The server returned HTTP %lld." = "サーバが HTTP %lld を返しました。";
 "No feed was found at this address." = "このアドレスにはフィードが見つかりませんでした。";
+"This feed may no longer exist." = "このフィードはもう存在しないかもしれません。";
