@@ -51,7 +51,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
         setUp(articleTable, column: Self.articleColumn)
         articleTable.style = .plain
-        articleTable.rowHeight = 62
+        articleTable.rowHeight = 78
         articleTable.menu = contextMenu()
         articleTable.onKey = { [unowned self] in self.handleKey($0) }
 
@@ -627,7 +627,12 @@ final class ArticleCell: NSTableCellView {
     private let title = NSTextField(wrappingLabelWithString: "")
     private let meta = NSTextField(labelWithString: "")
     private let dot = NSView()
+    private let thumbnail = NSView()
+    private var image: String?
     private var unread = false
+    /// The title runs to the cell's edge, or stops at the thumbnail when there is one.
+    private var titleToEdge: NSLayoutConstraint!
+    private var titleToThumbnail: NSLayoutConstraint!
 
     private static let relative: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
@@ -638,7 +643,7 @@ final class ArticleCell: NSTableCellView {
     init() {
         super.init(frame: .zero)
         identifier = NSUserInterfaceItemIdentifier("article")
-        title.maximumNumberOfLines = 2
+        title.maximumNumberOfLines = 3
         title.cell?.truncatesLastVisibleLine = true
         title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         title.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
@@ -648,24 +653,34 @@ final class ArticleCell: NSTableCellView {
         meta.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         dot.wantsLayer = true
         dot.layer?.cornerRadius = 4
+        thumbnail.wantsLayer = true
+        thumbnail.layer?.cornerRadius = 4
+        thumbnail.layer?.masksToBounds = true
+        thumbnail.layer?.contentsGravity = .resizeAspectFill
         textField = title
-        for view in [dot, title, meta] {
+        for view in [dot, title, meta, thumbnail] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
+        titleToEdge = title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
+        titleToThumbnail = title.trailingAnchor.constraint(equalTo: thumbnail.leadingAnchor, constant: -8)
         NSLayoutConstraint.activate([
             dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
             dot.topAnchor.constraint(equalTo: topAnchor, constant: 12),
             dot.widthAnchor.constraint(equalToConstant: 8),
             dot.heightAnchor.constraint(equalToConstant: 8),
             title.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 8),
-            title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            titleToEdge,
             title.topAnchor.constraint(equalTo: topAnchor, constant: 7),
-            // A fixed height for two lines; the intrinsic size of a wrapping label is one line in a table cell.
+            // A fixed height for three lines; the intrinsic size of a wrapping label is one line in a table cell.
             title.bottomAnchor.constraint(equalTo: meta.topAnchor, constant: -1),
             meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
             meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
             meta.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
+            thumbnail.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            thumbnail.centerYAnchor.constraint(equalTo: centerYAnchor),
+            thumbnail.widthAnchor.constraint(equalToConstant: 56),
+            thumbnail.heightAnchor.constraint(equalToConstant: 56),
         ])
     }
 
@@ -677,7 +692,28 @@ final class ArticleCell: NSTableCellView {
         title.font = .systemFont(ofSize: 13, weight: unread ? .semibold : .regular)
         let date = Self.relative.localizedString(for: article.date, relativeTo: Date())
         meta.stringValue = [feedTitle, date].compactMap { $0 }.joined(separator: " · ")
+        showImage(article.image)
         updateColors()
+    }
+
+    /// Keeps the thumbnail's space while it loads, and gives it back if it fails.
+    private func showImage(_ url: String?) {
+        image = url
+        setThumbnail(url.flatMap(Thumbnails.cached), visible: url != nil)
+        guard let url, Thumbnails.cached(url) == nil else { return }
+        Task {
+            let loaded = await Thumbnails.image(url)
+            guard image == url else { return }  // The cell was reused meanwhile.
+            setThumbnail(loaded, visible: loaded != nil)
+        }
+    }
+
+    private func setThumbnail(_ loaded: CGImage?, visible: Bool) {
+        thumbnail.layer?.contents = loaded
+        thumbnail.layer?.backgroundColor = loaded == nil ? NSColor.quaternaryLabelColor.cgColor : nil
+        thumbnail.isHidden = !visible
+        titleToEdge.isActive = !visible
+        titleToThumbnail.isActive = visible
     }
 
     override var backgroundStyle: NSView.BackgroundStyle {
