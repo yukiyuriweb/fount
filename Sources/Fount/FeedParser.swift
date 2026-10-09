@@ -12,11 +12,16 @@ struct ParsedItem {
     var link = ""
     var date: Date?
     var updated: Date?
+    /// A thumbnail the feed itself provides; article pages are never fetched for one.
+    var image: String?
 }
 
 /// Parses RSS 2.0, RSS 1.0 (RDF) and Atom. Only what the reader shows is kept:
 /// the article body is never parsed, because articles are shown as web pages.
 final class FeedParser: NSObject, XMLParserDelegate {
+    private static let mediaRSS = "http://search.yahoo.com/mrss/"
+    private static let hatena = "http://www.hatena.ne.jp/info/xmlns#"
+
     private var stack: [String] = []
     private var text = ""
     private var root: String?
@@ -47,6 +52,10 @@ final class FeedParser: NSObject, XMLParserDelegate {
         case "item", "entry":
             item = ParsedItem(id: attributes["about"] ?? "")
         case "link":
+            if item != nil, attributes["rel"] == "enclosure", let href = attributes["href"],
+               Self.isImage(href, type: attributes["type"]) {
+                setImage(href)
+            }
             // Atom links carry the URL in href; take the page link, not self/enclosure/replies.
             guard let href = attributes["href"], attributes["rel"] == nil || attributes["rel"] == "alternate" else { break }
             if item != nil {
@@ -54,9 +63,29 @@ final class FeedParser: NSObject, XMLParserDelegate {
             } else if parent == "feed", feed.siteURL == nil {
                 feed.siteURL = href
             }
+        case "enclosure" where item != nil:
+            if let url = attributes["url"], Self.isImage(url, type: attributes["type"]) { setImage(url) }
+        case "thumbnail" where item != nil && namespaceURI == Self.mediaRSS:
+            if let url = attributes["url"] { setImage(url) }
+        case "content" where item != nil && namespaceURI == Self.mediaRSS:
+            if let url = attributes["url"], attributes["medium"] == "image" || Self.isImage(url, type: attributes["type"]) {
+                setImage(url)
+            }
         default:
             break
         }
+    }
+
+    /// Keeps the first image an item names.
+    private func setImage(_ url: String) {
+        if item?.image == nil, !url.isEmpty { item?.image = url }
+    }
+
+    /// Zenn's enclosures carry `type="false"`, so a type that isn't a MIME type falls back to the extension.
+    private static func isImage(_ url: String, type: String?) -> Bool {
+        if let type, type.contains("/") { return type.lowercased().hasPrefix("image/") }
+        let ext = URL(string: url)?.pathExtension.lowercased() ?? ""
+        return ["jpg", "jpeg", "png", "gif", "webp", "avif"].contains(ext)
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
@@ -69,6 +98,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if name == "item" || name == "entry", var done = item {
             done.link = resolve(done.link)
+            done.image = done.image.map(resolve)
             if done.id.isEmpty { done.id = done.link }
             if !done.link.isEmpty { feed.items.append(done) }
             item = nil
@@ -79,6 +109,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
             case "guid", "id": item!.id = value
             case "pubDate", "published", "date": item!.date = Self.date(value)
             case "updated": item!.updated = Self.date(value)
+            case "imageurl" where namespaceURI == Self.hatena: setImage(value)
             default: break
             }
         } else if parent == "channel" || parent == "feed" {

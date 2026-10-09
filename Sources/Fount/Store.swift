@@ -20,6 +20,7 @@ struct Article: Codable {
     var link: String
     var date: Date
     var read: Bool
+    var image: String?
 
     var key: String { feed + "\n" + id }
 }
@@ -153,11 +154,12 @@ final class Store {
             if let i = index[item.id] {
                 articles[i].title = item.title
                 articles[i].link = item.link
+                articles[i].image = item.image
                 if let date { articles[i].date = date }
             } else {
                 index[item.id] = articles.count
                 articles.append(Article(id: item.id, feed: url, title: item.title, link: item.link,
-                                        date: date ?? now, read: false))
+                                        date: date ?? now, read: false, image: item.image))
             }
         }
         articles.sort { $0.date > $1.date }
