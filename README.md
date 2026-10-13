@@ -22,7 +22,7 @@ Many readers re-render articles in their own reader view, which breaks code bloc
 ./build.sh
 ```
 
-This produces `build/Fount.app`. Move it to `/Applications` if you like.
+This produces `build/Fount.app`. `./build.sh --install` also copies it to `~/Applications`.
 
 ## Usage
 

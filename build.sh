@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds Fount.app into ./build
+# Builds Fount.app into ./build; with --install, also copies it to ~/Applications
 set -e
 cd "$(dirname "$0")"
 swift build -c release
@@ -43,3 +43,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 codesign --force --sign - "$APP"
 echo "Built $APP"
+
+if [ "$1" = "--install" ]; then
+    mkdir -p ~/Applications
+    rm -rf ~/Applications/Fount.app
+    cp -R "$APP" ~/Applications/
+    echo "Installed ~/Applications/Fount.app"
+fi
