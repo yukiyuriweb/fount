@@ -92,6 +92,11 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
                                                object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.markScrolledPastRead() }
         }
+        // Going back to the list to pick the next article, the one just read would only distract.
+        NotificationCenter.default.addObserver(forName: NSScrollView.willStartLiveScrollNotification,
+                                               object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.closeArticle() }
+        }
 
         window.contentViewController = split
         window.title = "Fount"
@@ -221,6 +226,17 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
                 self.scrolledPast = []
             }
         }
+    }
+
+    /// Clears the page and the list's selection when the user starts scrolling the list. The article stays
+    /// listed (read articles are kept until Refresh), so clicking it opens it again.
+    private func closeArticle() {
+        guard articleTable.selectedRow >= 0 || loadedKey != nil else { return }
+        selectedKey = nil
+        reloading = true
+        articleTable.deselectAll(nil)
+        reloading = false
+        showPlaceholder()
     }
 
     private func showPlaceholder() {
