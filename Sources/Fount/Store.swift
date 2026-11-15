@@ -98,6 +98,7 @@ final class Store {
 
     /// Marks the given articles read in one change.
     func markRead(_ keys: Set<String>) {
+        guard !keys.isEmpty else { return }
         var any = false
         for i in articles.indices where !articles[i].read && keys.contains(articles[i].key) {
             articles[i].read = true

@@ -26,6 +26,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     /// Articles scrolled past during the current scroll, marked read once it settles.
     private var scrolledPast: Set<String> = []
     private var scrollSettleTimer: Timer?
+    /// The first visible row when the current live scroll began: only rows that cross the top during it count.
+    private var liveScrollStartRow: Int?
     /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
     private enum FeedSort: String, CaseIterable { case title, added, latest }
     private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
@@ -82,6 +84,10 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
         // Live scrolls are the user's own (trackpad, wheel, scroller), unlike the scrolling that
         // reloads, feed switches and sorting cause, so only they mark articles read.
+        NotificationCenter.default.addObserver(forName: NSScrollView.willStartLiveScrollNotification,
+                                               object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.liveScrollStartRow = self?.firstVisibleRow() }
+        }
         NotificationCenter.default.addObserver(forName: NSScrollView.didLiveScrollNotification,
                                                object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.markScrolledPastRead() }
@@ -185,17 +191,26 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         reloading = false
     }
 
-    /// Collects the articles scrolled entirely above the top of the list, and marks them read once the scroll
-    /// (momentum included) has settled: marking reloads both tables, which would stutter mid-scroll.
-    /// They stay listed until Refresh, like opened ones, so the rows don't shift under the pointer.
-    private func markScrolledPastRead() {
-        guard !reloading, let clip = articleTable.enclosingScrollView?.contentView else { return }
-        // The list scrolls under the toolbar, so its visible top starts below the content inset.
+    /// The first row at least partly visible. The list scrolls under the toolbar, so its visible top
+    /// starts below the content inset.
+    private func firstVisibleRow() -> Int {
+        guard let clip = articleTable.enclosingScrollView?.contentView else { return 0 }
         let top = clip.bounds.minY + clip.contentInsets.top
-        guard top > 0 else { return }
-        let firstVisible = articleTable.row(at: NSPoint(x: 0, y: top))
-        let passed = visible.prefix(firstVisible >= 0 ? firstVisible : visible.count)
-        scrolledPast.formUnion(passed.lazy.filter { !$0.read }.map(\.key))
+        guard top > 0 else { return 0 }
+        let row = articleTable.row(at: NSPoint(x: 0, y: top))
+        return row >= 0 ? row : visible.count
+    }
+
+    /// Collects the articles that scrolled entirely above the top of the list during the current live scroll,
+    /// and marks them read once the scroll (momentum included) has settled: marking reloads both tables, which
+    /// would stutter mid-scroll. Rows that were already above the top when the scroll began, say after sorting
+    /// moved the list down, were never scrolled past and stay as they are. Marked articles stay listed until
+    /// Refresh, like opened ones, so the rows don't shift under the pointer.
+    private func markScrolledPastRead() {
+        guard !reloading, let start = liveScrollStartRow else { return }
+        let first = min(firstVisibleRow(), visible.count)
+        guard first > start else { return }
+        scrolledPast.formUnion(visible[start..<first].lazy.filter { !$0.read }.map(\.key))
         guard !scrolledPast.isEmpty else { return }
         scrollSettleTimer?.invalidate()
         scrollSettleTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
