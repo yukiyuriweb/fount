@@ -24,6 +24,7 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 - **Never drop an article the feed still lists.** `merge` keeps up to 200 older articles per feed, plus everything in the latest fetch; dropping a listed one would bring it back as unread on the next refresh.
 - **Articles are identified by `Article.key`** (feed URL + item ID, falling back to the link). Table reloads restore the selection by key, inside the `reloading` flag so that restoring it doesn't count as a user selection.
 - With "Unread" on, the open article stays listed after it turns read, until the selection or filter changes.
+- **Keep refreshing while the window is closed.** Feeds list only their latest items (Lifehacker Japan: 20, about 12 hours), so articles that scroll out while Fount isn't running are lost for good. Closing the window switches the app to the `.accessory` activation policy, leaving a menu bar item with the unread count; the window is not released, and the store and refresh timer keep running. Fount registers itself to open at login once (`SMAppService.mainApp`), starts in the menu bar when launched at login, and refreshes on wake.
 - Links meant for a new window, and ⌘-clicked links, open in the default browser rather than inside the app.
 
 ## Verifying changes

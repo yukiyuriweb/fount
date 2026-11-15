@@ -32,6 +32,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var reloading = false
     private var adding = false
     private var refreshTimer: Timer?
+    /// Tells the menu bar item the unread count, which it shows while the window is closed too.
+    var onUnreadCountChange: ((Int) -> Void)?
 
     private static let feedColumn = NSUserInterfaceItemIdentifier("feed")
     private static let articleColumn = NSUserInterfaceItemIdentifier("article")
@@ -93,8 +95,15 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         feedTable.selectRowIndexes([0], byExtendingSelection: false)
         showPlaceholder()
 
+        // Closing the window keeps the app, the store and this timer running in the menu bar, so the window
+        // is kept for showing again.
+        window.isReleasedWhenClosed = false
         store.refresh()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.store.refresh() }
+        }
+        // Busy feeds list only their latest items, so catch up right after sleep rather than up to 30 minutes later.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.store.refresh() }
         }
     }
@@ -154,6 +163,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             : store.isRefreshing ? String(localized: "Updating…")
             : total > 0 ? String(localized: "\(total) unread") : ""
         NSApp.dockTile.badgeLabel = total > 0 ? "\(total)" : nil
+        onUnreadCountChange?(total)
         window?.toolbar?.validateVisibleItems()
     }
 
