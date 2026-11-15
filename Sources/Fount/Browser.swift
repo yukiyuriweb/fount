@@ -37,8 +37,10 @@ enum Browser {
             .sorted { name($0).localizedStandardCompare(name($1)) == .orderedAscending }
     }
 
+    /// The app's name without a trailing ".app", which the display name keeps when the Finder shows extensions.
     static func name(_ app: URL) -> String {
-        FileManager.default.displayName(atPath: app.path).replacingOccurrences(of: ".app", with: "")
+        let name = FileManager.default.displayName(atPath: app.path)
+        return name.hasSuffix(".app") ? String(name.dropLast(4)) : name
     }
 
     static func icon(_ app: URL) -> NSImage {
