@@ -239,7 +239,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             loadedKey = article.key
             webView.load(URLRequest(url: url))
         }
-        keptRead.insert(article.key)
+        // Only articles that turn read here; an already-read one opened under All doesn't belong under Unread.
+        if !article.read { keptRead.insert(article.key) }
         store.setRead(article.key, true)
     }
 
