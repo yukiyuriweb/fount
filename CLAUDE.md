@@ -24,7 +24,7 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 - **Never drop an article the feed still lists.** `merge` keeps up to 200 older articles per feed, plus everything in the latest fetch; dropping a listed one would bring it back as unread on the next refresh.
 - **Articles are identified by `Article.key`** (feed URL + item ID, falling back to the link). Table reloads restore the selection by key, inside the `reloading` flag so that restoring it doesn't count as a user selection.
 - With "Unread" on, the open article stays listed after it turns read, until the selection or filter changes.
-- Links meant for a new window, and ⌘-clicked links, open in the default browser rather than inside the app.
+- Links meant for a new window, and ⌘-clicked links, open in the browser rather than inside the app. `Browser.open` uses the one picked in Article > Browser, or the system default.
 
 ## Verifying changes
 
