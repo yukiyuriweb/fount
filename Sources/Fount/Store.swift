@@ -96,6 +96,16 @@ final class Store {
         changed()
     }
 
+    /// Marks the given articles read in one change.
+    func markRead(_ keys: Set<String>) {
+        var any = false
+        for i in articles.indices where !articles[i].read && keys.contains(articles[i].key) {
+            articles[i].read = true
+            any = true
+        }
+        if any { changed() }
+    }
+
     /// Marks every article read, or only those of `feed`.
     func markAllRead(feed: String?) {
         for i in articles.indices where feed == nil || articles[i].feed == feed {

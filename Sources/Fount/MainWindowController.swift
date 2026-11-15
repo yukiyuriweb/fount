@@ -23,6 +23,9 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     /// Articles read since the last Refresh. They stay listed under Unread, so the reader can go back to them,
     /// until Refresh clears them out together.
     private var keptRead: Set<String> = []
+    /// Articles scrolled past during the current scroll, marked read once it settles.
+    private var scrolledPast: Set<String> = []
+    private var scrollSettleTimer: Timer?
     /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
     private enum FeedSort: String, CaseIterable { case title, added, latest }
     private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
@@ -76,6 +79,13 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         [sidebar, list, detail].forEach(split.addSplitViewItem)
         split.view.frame = NSRect(x: 0, y: 0, width: 1280, height: 820)
         split.splitView.autosaveName = "MainSplit"
+
+        // Live scrolls are the user's own (trackpad, wheel, scroller), unlike the scrolling that
+        // reloads, feed switches and sorting cause, so only they mark articles read.
+        NotificationCenter.default.addObserver(forName: NSScrollView.didLiveScrollNotification,
+                                               object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.markScrolledPastRead() }
+        }
 
         window.contentViewController = split
         window.title = "Fount"
@@ -173,6 +183,29 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             articleTable.selectRowIndexes([row], byExtendingSelection: false)
         }
         reloading = false
+    }
+
+    /// Collects the articles scrolled entirely above the top of the list, and marks them read once the scroll
+    /// (momentum included) has settled: marking reloads both tables, which would stutter mid-scroll.
+    /// They stay listed until Refresh, like opened ones, so the rows don't shift under the pointer.
+    private func markScrolledPastRead() {
+        guard !reloading, let clip = articleTable.enclosingScrollView?.contentView else { return }
+        // The list scrolls under the toolbar, so its visible top starts below the content inset.
+        let top = clip.bounds.minY + clip.contentInsets.top
+        guard top > 0 else { return }
+        let firstVisible = articleTable.row(at: NSPoint(x: 0, y: top))
+        let passed = visible.prefix(firstVisible >= 0 ? firstVisible : visible.count)
+        scrolledPast.formUnion(passed.lazy.filter { !$0.read }.map(\.key))
+        guard !scrolledPast.isEmpty else { return }
+        scrollSettleTimer?.invalidate()
+        scrollSettleTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.keptRead.formUnion(self.scrolledPast)
+                self.store.markRead(self.scrolledPast)
+                self.scrolledPast = []
+            }
+        }
     }
 
     private func showPlaceholder() {
@@ -355,6 +388,10 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     /// Clears the articles read since the last Refresh out of the Unread list, then fetches.
     @objc func refresh(_ sender: Any?) {
+        // Articles scrolled past just before are read too, so they go with the rest.
+        scrollSettleTimer?.invalidate()
+        store.markRead(scrolledPast)
+        scrolledPast = []
         keptRead.removeAll()
         reloadArticles()
         store.refresh()
