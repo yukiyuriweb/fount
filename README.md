@@ -14,8 +14,8 @@ Many readers re-render articles in their own reader view, which breaks code bloc
 
 ## Requirements
 
-- macOS 13 or later
-- Xcode or the Xcode Command Line Tools (Swift 5.9+)
+- macOS 26 or later
+- Xcode or the Xcode Command Line Tools (Swift 6.2+)
 
 ## Build
 
@@ -29,8 +29,9 @@ This produces `build/Fount.app`. `./build.sh --install` also copies it to `~/App
 
 - ⌘N adds a feed. ⌘R refreshes all feeds.
 - In the article list: `j` / `k` next / previous article, `Space` / `Shift-Space` scroll the page, `o` or `Return` open in the browser, `m` toggle read.
-- ⌘K marks all articles in the current feed as read. ⇧⌘U shows unread articles only.
-- ⌘-click a link in the page to open it in your default browser. ⌘+ / ⌘- zoom the page; ⌥⌘+ / ⌥⌘- change the size of the article titles in the list.
+- ⌘K marks all articles in the current feed as read. ⇧⌘U shows unread articles only; articles you read stay listed until the next ⌘R, so you can go back to them.
+- Scrolling the article list marks the articles that scroll past its top as read, and clears the page so the article just read doesn't distract from picking the next.
+- ⌘-click a link in the page to open it in your browser: the one picked in Article › Browser, or the system default. ⌘+ / ⌘- zoom the page; ⌥⌘+ / ⌥⌘- change the size of the article titles in the list.
 
 Subscriptions and articles are stored in `~/Library/Application Support/Fount/state.json`.
 

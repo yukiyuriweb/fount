@@ -20,6 +20,14 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var loadedKey: String?
     private var visible: [Article] = []
     private var unreadOnly = UserDefaults.standard.bool(forKey: "unreadOnly")
+    /// Articles read since the last Refresh. They stay listed under Unread, so the reader can go back to them,
+    /// until Refresh clears them out together.
+    private var keptRead: Set<String> = []
+    /// Articles scrolled past during the current scroll, marked read once it settles.
+    private var scrolledPast: Set<String> = []
+    private var scrollSettleTimer: Timer?
+    /// The first visible row when the current live scroll began: only rows that cross the top during it count.
+    private var liveScrollStartRow: Int?
     /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
     private enum FeedSort: String, CaseIterable { case title, added, latest }
     private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
@@ -78,6 +86,22 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         [sidebar, list, detail].forEach(split.addSplitViewItem)
         split.view.frame = NSRect(x: 0, y: 0, width: 1280, height: 820)
         split.splitView.autosaveName = "MainSplit"
+
+        // Live scrolls are the user's own (trackpad, wheel, scroller), unlike the scrolling that
+        // reloads, feed switches and sorting cause, so only they mark articles read.
+        NotificationCenter.default.addObserver(forName: NSScrollView.willStartLiveScrollNotification,
+                                               object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.liveScrollStartRow = self?.firstVisibleRow() }
+        }
+        NotificationCenter.default.addObserver(forName: NSScrollView.didLiveScrollNotification,
+                                               object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.markScrolledPastRead() }
+        }
+        // Going back to the list to pick the next article, the one just read would only distract.
+        NotificationCenter.default.addObserver(forName: NSScrollView.willStartLiveScrollNotification,
+                                               object: articleTable.enclosingScrollView, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.closeArticle() }
+        }
 
         window.contentViewController = split
         window.title = "Fount"
@@ -165,8 +189,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private func reloadArticles() {
         visible = store.articles.filter {
             (selectedFeed == nil || $0.feed == selectedFeed)
-                // Keep the open article listed after it turns read.
-                && (!unreadOnly || !$0.read || $0.key == selectedKey)
+                // Keep articles read since the last Refresh, and the open one, listed after they turn read.
+                && (!unreadOnly || !$0.read || keptRead.contains($0.key) || $0.key == selectedKey)
         }
         if oldestFirst { visible.reverse() }  // the store keeps articles newest first
         reloading = true
@@ -175,6 +199,49 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             articleTable.selectRowIndexes([row], byExtendingSelection: false)
         }
         reloading = false
+    }
+
+    /// The first row at least partly visible. The list scrolls under the toolbar, so its visible top
+    /// starts below the content inset.
+    private func firstVisibleRow() -> Int {
+        guard let clip = articleTable.enclosingScrollView?.contentView else { return 0 }
+        let top = clip.bounds.minY + clip.contentInsets.top
+        guard top > 0 else { return 0 }
+        let row = articleTable.row(at: NSPoint(x: 0, y: top))
+        return row >= 0 ? row : visible.count
+    }
+
+    /// Collects the articles that scrolled entirely above the top of the list during the current live scroll,
+    /// and marks them read once the scroll (momentum included) has settled: marking reloads both tables, which
+    /// would stutter mid-scroll. Rows that were already above the top when the scroll began, say after sorting
+    /// moved the list down, were never scrolled past and stay as they are. Marked articles stay listed until
+    /// Refresh, like opened ones, so the rows don't shift under the pointer.
+    private func markScrolledPastRead() {
+        guard !reloading, let start = liveScrollStartRow else { return }
+        let first = min(firstVisibleRow(), visible.count)
+        guard first > start else { return }
+        scrolledPast.formUnion(visible[start..<first].lazy.filter { !$0.read }.map(\.key))
+        guard !scrolledPast.isEmpty else { return }
+        scrollSettleTimer?.invalidate()
+        scrollSettleTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.keptRead.formUnion(self.scrolledPast)
+                self.store.markRead(self.scrolledPast)
+                self.scrolledPast = []
+            }
+        }
+    }
+
+    /// Clears the page and the list's selection when the user starts scrolling the list. The article stays
+    /// listed (read articles are kept until Refresh), so clicking it opens it again.
+    private func closeArticle() {
+        guard articleTable.selectedRow >= 0 || loadedKey != nil else { return }
+        selectedKey = nil
+        reloading = true
+        articleTable.deselectAll(nil)
+        reloading = false
+        showPlaceholder()
     }
 
     private func showPlaceholder() {
@@ -241,6 +308,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             loadedKey = article.key
             webView.load(URLRequest(url: url))
         }
+        // Only articles that turn read here; an already-read one opened under All doesn't belong under Unread.
+        if !article.read { keptRead.insert(article.key) }
         store.setRead(article.key, true)
     }
 
@@ -354,7 +423,16 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         }
     }
 
-    @objc func refresh(_ sender: Any?) { store.refresh() }
+    /// Clears the articles read since the last Refresh out of the Unread list, then fetches.
+    @objc func refresh(_ sender: Any?) {
+        // Articles scrolled past just before are read too, so they go with the rest.
+        scrollSettleTimer?.invalidate()
+        store.markRead(scrolledPast)
+        scrolledPast = []
+        keptRead.removeAll()
+        reloadArticles()
+        store.refresh()
+    }
 
     @objc func filterChanged(_ sender: NSSegmentedControl) {
         unreadOnly = sender.selectedSegment == 1
@@ -372,7 +450,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         let url = sender is NSMenuItem && articleTable.clickedRow >= 0
             ? currentArticle.flatMap { URL(string: $0.link) }
             : webView.url?.scheme?.hasPrefix("http") == true ? webView.url : currentArticle.flatMap { URL(string: $0.link) }
-        if let url { NSWorkspace.shared.open(url) }
+        if let url { Browser.open(url) }
+    }
+
+    /// Article > Browser; an item without an app is the system default.
+    @objc func chooseBrowser(_ sender: NSMenuItem) {
+        Browser.chosen = sender.representedObject as? URL
     }
 
     @objc func copyLink(_ sender: Any?) {
@@ -383,6 +466,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     @objc func toggleRead(_ sender: Any?) {
         guard let article = currentArticle else { return }
+        if !article.read { keptRead.insert(article.key) }
         store.setRead(article.key, !article.read)
     }
 
@@ -477,6 +561,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             return rowMetrics.titleSize > ArticleRowMetrics.sizes.lowerBound
         case #selector(defaultListTextSize(_:)):
             return rowMetrics.titleSize != ArticleRowMetrics.defaultSize
+        case #selector(chooseBrowser(_:)):
+            item.state = (item.representedObject as? URL)?.path == Browser.chosen?.path ? .on : .off
         case #selector(openInBrowser(_:)), #selector(copyLink(_:)):
             return currentArticle != nil
         case #selector(toggleRead(_:)):
@@ -571,19 +657,19 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
-        // ⌘-click opens a link in the default browser, as in Safari.
+        // ⌘-click opens a link in the browser, as in Safari.
         if action.navigationType == .linkActivated, action.modifierFlags.contains(.command), let url = action.request.url {
-            NSWorkspace.shared.open(url)
+            Browser.open(url)
             decisionHandler(.cancel)
         } else {
             decisionHandler(.allow)
         }
     }
 
-    /// Links meant for a new window (target=_blank) go to the default browser.
+    /// Links meant for a new window (target=_blank) go to the browser.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = action.request.url { NSWorkspace.shared.open(url) }
+        if let url = action.request.url { Browser.open(url) }
         return nil
     }
 }
