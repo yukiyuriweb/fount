@@ -79,12 +79,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Open at login
 
-    /// Registers once, on the first launch; after that the menu bar item's toggle is the user's choice.
+    /// Registers once; after that the menu bar item's toggle is the user's choice. A failed attempt is
+    /// tried again on the next launch rather than leaving Fount off the login items for good.
     private func registerAtLoginOnce() {
         let key = "registeredOpenAtLogin"
         guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-        try? SMAppService.mainApp.register()
+        do {
+            try SMAppService.mainApp.register()
+            UserDefaults.standard.set(true, forKey: key)
+        } catch {
+            NSLog("Fount couldn't register to open at login: %@", error.localizedDescription)
+        }
     }
 
     @objc func toggleOpenAtLogin(_ sender: NSMenuItem) {
