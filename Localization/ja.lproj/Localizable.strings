@@ -72,3 +72,8 @@
 "Browser" = "ブラウザ";
 "System Default" = "システムのデフォルト";
 "System Default (%@)" = "システムのデフォルト（%@）";
+
+/* Article list text size */
+"Bigger List Text" = "一覧の文字を拡大";
+"Smaller List Text" = "一覧の文字を縮小";
+"Default List Text Size" = "一覧の文字を標準サイズに";

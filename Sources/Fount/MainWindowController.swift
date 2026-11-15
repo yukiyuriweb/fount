@@ -34,6 +34,11 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var sortDescending = UserDefaults.standard.bool(forKey: "feedSortDescending")
     /// The article list is newest first unless this is set.
     private var oldestFirst = UserDefaults.standard.bool(forKey: "articlesOldestFirst")
+    /// The article list's title size; View > Bigger / Smaller List Text change it.
+    private var rowMetrics = ArticleRowMetrics(titleSize: {
+        let saved = CGFloat(UserDefaults.standard.double(forKey: "articleListTextSize"))
+        return ArticleRowMetrics.sizes.contains(saved) ? saved : ArticleRowMetrics.defaultSize
+    }())
     /// `store.feeds` in sidebar order; row 0 is All Articles, so feed rows are offset by one.
     private var feeds: [Feed] = []
     /// Set while tables are reloaded, so restoring the selection doesn't count as the user's choice.
@@ -59,7 +64,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
         setUp(articleTable, column: Self.articleColumn)
         articleTable.style = .plain
-        articleTable.rowHeight = 78
+        articleTable.rowHeight = rowMetrics.rowHeight
         articleTable.menu = contextMenu()
         articleTable.onKey = { [unowned self] in self.handleKey($0) }
 
@@ -272,7 +277,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         }
         let cell = tableView.makeView(withIdentifier: Self.articleColumn, owner: nil) as? ArticleCell ?? ArticleCell()
         let article = visible[row]
-        cell.show(article, feedTitle: selectedFeed == nil ? store.feed(article.feed)?.title : nil)
+        cell.show(article, feedTitle: selectedFeed == nil ? store.feed(article.feed)?.title : nil, metrics: rowMetrics)
         return cell
     }
 
@@ -489,6 +494,19 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         }
     }
 
+    @objc func biggerListText(_ sender: Any?) { setListTextSize(rowMetrics.titleSize + 1) }
+    @objc func smallerListText(_ sender: Any?) { setListTextSize(rowMetrics.titleSize - 1) }
+    @objc func defaultListTextSize(_ sender: Any?) { setListTextSize(ArticleRowMetrics.defaultSize) }
+
+    private func setListTextSize(_ size: CGFloat) {
+        let size = min(max(size, ArticleRowMetrics.sizes.lowerBound), ArticleRowMetrics.sizes.upperBound)
+        guard size != rowMetrics.titleSize else { return }
+        rowMetrics = ArticleRowMetrics(titleSize: size)
+        UserDefaults.standard.set(Double(size), forKey: "articleListTextSize")
+        articleTable.rowHeight = rowMetrics.rowHeight
+        reloadArticles()
+    }
+
     @objc func zoomIn(_ sender: Any?) { setZoom(webView.pageZoom * 1.1) }
     @objc func zoomOut(_ sender: Any?) { setZoom(webView.pageZoom / 1.1) }
     @objc func actualSize(_ sender: Any?) { setZoom(1) }
@@ -537,6 +555,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             item.state = (item.tag == 1) == oldestFirst ? .on : .off
         case #selector(setFeedSortOrder(_:)):
             item.state = (item.tag == 1) == sortDescending ? .on : .off
+        case #selector(biggerListText(_:)):
+            return rowMetrics.titleSize < ArticleRowMetrics.sizes.upperBound
+        case #selector(smallerListText(_:)):
+            return rowMetrics.titleSize > ArticleRowMetrics.sizes.lowerBound
+        case #selector(defaultListTextSize(_:)):
+            return rowMetrics.titleSize != ArticleRowMetrics.defaultSize
         case #selector(chooseBrowser(_:)):
             item.state = (item.representedObject as? URL)?.path == Browser.chosen?.path ? .on : .off
         case #selector(openInBrowser(_:)), #selector(copyLink(_:)):
@@ -709,16 +733,58 @@ final class FeedCell: NSTableCellView {
     }
 }
 
+/// Sizes of an article row, all derived from the title's font size (View > Bigger / Smaller List Text).
+/// Every row has room for two title lines, the feed and time, and two lines of excerpt, so the list keeps
+/// an even rhythm and the faint excerpt sets the titles apart.
+struct ArticleRowMetrics {
+    static let defaultSize: CGFloat = 15
+    static let sizes: ClosedRange<CGFloat> = 11...24
+    static let padding: CGFloat = 12
+    static let gap: CGFloat = 4
+
+    let titleSize: CGFloat
+    func titleFont(unread: Bool) -> NSFont { .systemFont(ofSize: titleSize, weight: unread ? .semibold : .regular) }
+    var metaFont: NSFont { .systemFont(ofSize: (titleSize * 0.8).rounded()) }
+    var excerptFont: NSFont { .systemFont(ofSize: (titleSize * 0.87).rounded()) }
+
+    /// Measured on text with Japanese in it: the fallback font for kana and kanji has taller lines than the
+    /// system font's own line height, which would cut a Japanese title short.
+    private static func lineHeight(_ font: NSFont) -> CGFloat {
+        ("Agあ漢" as NSString).size(withAttributes: [.font: font]).height.rounded(.up)
+    }
+    var titleLine: CGFloat { Self.lineHeight(titleFont(unread: true)) }
+    var metaLine: CGFloat { Self.lineHeight(metaFont) }
+    var excerptLine: CGFloat { Self.lineHeight(excerptFont) }
+
+    var rowHeight: CGFloat {
+        Self.padding + 2 * titleLine + Self.gap + metaLine + Self.gap + 2 * excerptLine + Self.padding
+    }
+    /// A 3:2 landscape thumbnail, 120 × 80 at the default size.
+    var thumbnail: NSSize {
+        let height = min((titleSize * 16 / 3).rounded(), rowHeight - 2 * Self.padding)
+        return NSSize(width: (height * 1.5).rounded(), height: height)
+    }
+}
+
 final class ArticleCell: NSTableCellView {
     private let title = NSTextField(wrappingLabelWithString: "")
     private let meta = NSTextField(labelWithString: "")
+    private let excerpt = NSTextField(wrappingLabelWithString: "")
     private let dot = NSView()
     private let thumbnail = NSView()
     private var image: String?
     private var unread = false
-    /// The title runs to the cell's edge, or stops at the thumbnail when there is one.
+    private var metrics = ArticleRowMetrics(titleSize: ArticleRowMetrics.defaultSize)
+    /// The text runs to the cell's edge, or stops at the thumbnail when there is one.
     private var titleToEdge: NSLayoutConstraint!
     private var titleToThumbnail: NSLayoutConstraint!
+    /// One or two lines: the feed and the excerpt follow right under the title. Set in `layout()`, where the
+    /// width is known; a wrapping label in a table cell reports only one line as its intrinsic height.
+    private var titleHeight: NSLayoutConstraint!
+    private var excerptHeight: NSLayoutConstraint!
+    private var dotCenter: NSLayoutConstraint!
+    private var thumbnailWidth: NSLayoutConstraint!
+    private var thumbnailHeight: NSLayoutConstraint!
 
     private static let relative: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
@@ -729,57 +795,87 @@ final class ArticleCell: NSTableCellView {
     init() {
         super.init(frame: .zero)
         identifier = NSUserInterfaceItemIdentifier("article")
-        title.maximumNumberOfLines = 3
-        title.cell?.truncatesLastVisibleLine = true
-        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        title.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-        title.setContentHuggingPriority(.defaultLow, for: .vertical)
-        meta.font = .systemFont(ofSize: 11)
+        for label in [title, excerpt] {
+            label.maximumNumberOfLines = 2
+            label.cell?.truncatesLastVisibleLine = true
+            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            label.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        }
         meta.lineBreakMode = .byTruncatingTail
         meta.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         dot.wantsLayer = true
         dot.layer?.cornerRadius = 4
         thumbnail.wantsLayer = true
-        thumbnail.layer?.cornerRadius = 4
+        thumbnail.layer?.cornerRadius = 6
         thumbnail.layer?.masksToBounds = true
         thumbnail.layer?.contentsGravity = .resizeAspectFill
         textField = title
-        for view in [dot, title, meta, thumbnail] {
+        for view in [dot, title, meta, excerpt, thumbnail] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
-        titleToEdge = title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10)
-        titleToThumbnail = title.trailingAnchor.constraint(equalTo: thumbnail.leadingAnchor, constant: -8)
+        let padding = ArticleRowMetrics.padding, gap = ArticleRowMetrics.gap
+        titleToEdge = title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)
+        titleToThumbnail = title.trailingAnchor.constraint(equalTo: thumbnail.leadingAnchor, constant: -12)
+        titleHeight = title.heightAnchor.constraint(equalToConstant: 20)
+        excerptHeight = excerpt.heightAnchor.constraint(equalToConstant: 34)
+        dotCenter = dot.centerYAnchor.constraint(equalTo: title.topAnchor)
+        thumbnailWidth = thumbnail.widthAnchor.constraint(equalToConstant: 120)
+        thumbnailHeight = thumbnail.heightAnchor.constraint(equalToConstant: 80)
         NSLayoutConstraint.activate([
             dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            dot.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+            dotCenter,
             dot.widthAnchor.constraint(equalToConstant: 8),
             dot.heightAnchor.constraint(equalToConstant: 8),
             title.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 8),
             titleToEdge,
-            title.topAnchor.constraint(equalTo: topAnchor, constant: 7),
-            // A fixed height for three lines; the intrinsic size of a wrapping label is one line in a table cell.
-            title.bottomAnchor.constraint(equalTo: meta.topAnchor, constant: -1),
+            title.topAnchor.constraint(equalTo: topAnchor, constant: padding),
+            titleHeight,
             meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
             meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-            meta.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
-            thumbnail.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            thumbnail.centerYAnchor.constraint(equalTo: centerYAnchor),
-            thumbnail.widthAnchor.constraint(equalToConstant: 56),
-            thumbnail.heightAnchor.constraint(equalToConstant: 56),
+            meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: gap),
+            excerpt.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+            excerpt.trailingAnchor.constraint(equalTo: title.trailingAnchor),
+            excerpt.topAnchor.constraint(equalTo: meta.bottomAnchor, constant: gap),
+            excerptHeight,
+            thumbnail.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            thumbnail.topAnchor.constraint(equalTo: topAnchor, constant: padding),
+            thumbnailWidth,
+            thumbnailHeight,
         ])
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func show(_ article: Article, feedTitle: String?) {
+    func show(_ article: Article, feedTitle: String?, metrics: ArticleRowMetrics) {
+        self.metrics = metrics
         unread = !article.read
         title.stringValue = article.title.isEmpty ? article.link : article.title
-        title.font = .systemFont(ofSize: 13, weight: unread ? .semibold : .regular)
-        let date = Self.relative.localizedString(for: article.date, relativeTo: Date())
-        meta.stringValue = [feedTitle, date].compactMap { $0 }.joined(separator: " · ")
+        title.font = metrics.titleFont(unread: unread)
+        meta.font = metrics.metaFont
+        let time = Self.relative.localizedString(for: article.date, relativeTo: Date())
+        meta.stringValue = [feedTitle, time].compactMap { $0 }.joined(separator: "  ·  ")
+        excerpt.font = metrics.excerptFont
+        excerpt.stringValue = article.excerpt ?? ""
+        excerptHeight.constant = 2 * metrics.excerptLine
+        dotCenter.constant = (metrics.titleLine / 2).rounded()
+        thumbnailWidth.constant = metrics.thumbnail.width
+        thumbnailHeight.constant = metrics.thumbnail.height
         showImage(article.image)
         updateColors()
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let width = title.frame.width
+        guard width > 0 else { return }
+        let fits = title.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height ?? 0
+        let height = min(max(fits.rounded(.up), metrics.titleLine), 2 * metrics.titleLine)
+        if titleHeight.constant != height {
+            titleHeight.constant = height
+            super.layout()
+        }
     }
 
     /// Keeps the thumbnail's space while it loads, and gives it back if it fails.
@@ -800,17 +896,26 @@ final class ArticleCell: NSTableCellView {
         thumbnail.isHidden = !visible
         titleToEdge.isActive = !visible
         titleToThumbnail.isActive = visible
+        needsLayout = true
     }
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet { updateColors() }
     }
 
+    /// The excerpt is fainter than any system label color: it is there to space the titles out, not to be read.
+    private static let excerptColor = NSColor(name: nil) { appearance in
+        let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return dark ? NSColor(white: 1, alpha: 0.3) : NSColor(white: 0, alpha: 0.3)
+    }
+
     private func updateColors() {
         let selected = backgroundStyle == .emphasized
-        meta.textColor = selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
-        title.textColor = selected ? .alternateSelectedControlTextColor : unread ? .labelColor : .secondaryLabelColor
+        let onSelection = NSColor.alternateSelectedControlTextColor
+        meta.textColor = selected ? onSelection : .secondaryLabelColor
+        excerpt.textColor = selected ? onSelection.withAlphaComponent(0.6) : Self.excerptColor
+        title.textColor = selected ? onSelection : unread ? .labelColor : .secondaryLabelColor
         dot.isHidden = !unread
-        dot.layer?.backgroundColor = (selected ? NSColor.alternateSelectedControlTextColor : .controlAccentColor).cgColor
+        dot.layer?.backgroundColor = (selected ? onSelection : .controlAccentColor).cgColor
     }
 }
