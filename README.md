@@ -13,8 +13,8 @@ Many readers re-render articles in their own reader view, which breaks code bloc
 
 ## Requirements
 
-- macOS 13 or later
-- Xcode or the Xcode Command Line Tools (Swift 5.9+)
+- macOS 26 or later
+- Xcode or the Xcode Command Line Tools (Swift 6.2+)
 
 ## Build
 
