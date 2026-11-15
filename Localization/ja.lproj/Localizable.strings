@@ -67,3 +67,8 @@
 "The server returned HTTP %lld." = "サーバが HTTP %lld を返しました。";
 "No feed was found at this address." = "このアドレスにはフィードが見つかりませんでした。";
 "This feed may no longer exist." = "このフィードはもう存在しないかもしれません。";
+
+/* Article list text size */
+"Bigger List Text" = "一覧の文字を拡大";
+"Smaller List Text" = "一覧の文字を縮小";
+"Default List Text Size" = "一覧の文字を標準サイズに";

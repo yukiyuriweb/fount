@@ -21,6 +21,8 @@ struct Article: Codable {
     var date: Date
     var read: Bool
     var image: String?
+    /// Plain text from the feed's summary; nil for articles saved before excerpts were kept.
+    var excerpt: String?
 
     var key: String { feed + "\n" + id }
 }
@@ -155,11 +157,12 @@ final class Store {
                 articles[i].title = item.title
                 articles[i].link = item.link
                 articles[i].image = item.image
+                articles[i].excerpt = item.excerpt
                 if let date { articles[i].date = date }
             } else {
                 index[item.id] = articles.count
                 articles.append(Article(id: item.id, feed: url, title: item.title, link: item.link,
-                                        date: date ?? now, read: false, image: item.image))
+                                        date: date ?? now, read: false, image: item.image, excerpt: item.excerpt))
             }
         }
         articles.sort { $0.date > $1.date }

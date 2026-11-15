@@ -4,8 +4,8 @@ import ImageIO
 /// Article thumbnails, downloaded and shrunk off the main thread and kept in memory only.
 @MainActor
 enum Thumbnails {
-    /// Shortest side in pixels: the 56-point square thumbnail on a 2x display.
-    private nonisolated static let pixels = 112
+    /// Shortest side in pixels: the height of the largest thumbnail (128 points, at the biggest list text) on a 2x display.
+    private nonisolated static let pixels = 256
 
     /// Larger responses are dropped before they are buffered: the URLs come from feeds.
     private nonisolated static let maxBytes = 10 << 20

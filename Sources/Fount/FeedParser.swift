@@ -14,10 +14,12 @@ struct ParsedItem {
     var updated: Date?
     /// A thumbnail the feed itself provides; article pages are never fetched for one.
     var image: String?
+    /// The start of the item's summary as plain text, shown under the title in the list.
+    var excerpt: String?
 }
 
-/// Parses RSS 2.0, RSS 1.0 (RDF) and Atom. Only what the reader shows is kept:
-/// the article body is never parsed, because articles are shown as web pages.
+/// Parses RSS 2.0, RSS 1.0 (RDF) and Atom. Only what the reader shows is kept: articles are shown as
+/// web pages, so the only text taken from an item besides its title is a short plain-text excerpt.
 final class FeedParser: NSObject, XMLParserDelegate {
     private static let mediaRSS = "http://search.yahoo.com/mrss/"
     private static let hatena = "http://www.hatena.ne.jp/info/xmlns#"
@@ -99,6 +101,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
         if name == "item" || name == "entry", var done = item {
             done.link = resolve(done.link)
             done.image = done.image.map(resolve)
+            if done.excerpt == done.title { done.excerpt = nil }  // some feeds repeat the title
             if done.id.isEmpty { done.id = done.link }
             if !done.link.isEmpty { feed.items.append(done) }
             item = nil
@@ -110,6 +113,10 @@ final class FeedParser: NSObject, XMLParserDelegate {
             case "pubDate", "published", "date": item!.date = Self.date(value)
             case "updated": item!.updated = Self.date(value)
             case "imageurl" where namespaceURI == Self.hatena: setImage(value)
+            case "description", "summary": item!.excerpt = Self.excerpt(value) ?? item!.excerpt
+            // Without a summary, the start of the content the feed carries (Qiita's Atom has only that).
+            case "content" where namespaceURI != Self.mediaRSS, "encoded":
+                if item!.excerpt == nil { item!.excerpt = Self.excerpt(value) }
             default: break
             }
         } else if parent == "channel" || parent == "feed" {
@@ -121,6 +128,42 @@ final class FeedParser: NSObject, XMLParserDelegate {
         }
         stack.removeLast()
         text = ""
+    }
+
+    /// The first 300 characters of `html` as plain text, or nil if there is none.
+    static func excerpt(_ html: String) -> String? {
+        var s = html.replacingOccurrences(of: "<[^>]*>", with: " ", options: .regularExpression)
+        s = decodeEntities(s)
+        s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        return s.count > 300 ? String(s.prefix(300)) : s
+    }
+
+    private static let named = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
+
+    /// Decodes the named entities feeds use and every numeric one, leaving unknown ones as they are.
+    static func decodeEntities(_ s: String) -> String {
+        guard s.contains("&") else { return s }
+        let regex = try! NSRegularExpression(pattern: "&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z]+);")
+        var result = ""
+        var last = s.startIndex
+        for match in regex.matches(in: s, range: NSRange(s.startIndex..., in: s)) {
+            guard let whole = Range(match.range, in: s), let body = Range(match.range(at: 1), in: s) else { continue }
+            result += s[last..<whole.lowerBound]
+            let name = String(s[body])
+            var decoded: String?
+            if name.hasPrefix("#") {
+                let hex = name.dropFirst().first.map { $0 == "x" || $0 == "X" } ?? false
+                let digits = hex ? name.dropFirst(2) : name.dropFirst()
+                decoded = UInt32(digits, radix: hex ? 16 : 10).flatMap(Unicode.Scalar.init).map { String(Character($0)) }
+            } else {
+                decoded = named[name]
+            }
+            result += decoded ?? String(s[whole])
+            last = whole.upperBound
+        }
+        return result + s[last...]
     }
 
     private func resolve(_ link: String) -> String {

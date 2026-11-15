@@ -18,7 +18,7 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 
 ## Conventions in the code
 
-- **Show articles as web pages; don't parse article bodies.** That is the point of the app. `FeedParser` keeps only the title, link, ID and date of each item.
+- **Show articles as web pages; don't fetch or render article bodies.** That is the point of the app. `FeedParser` keeps the title, link, ID, date and thumbnail of each item, plus a plain-text excerpt (at most 300 characters) from the summary the feed itself carries, falling back to the start of its content. The excerpt is drawn faintly under the title to space the titles apart; it is not meant to be read.
 - **Never fetch on the main thread.** `Fetcher` is nonisolated and called from `Task`s; results come back to the `@MainActor` `Store`.
 - **Change data only through `Store`.** Every change goes through `changed()`, which recounts unread articles, notifies the window and schedules a save one second later. `applicationWillTerminate` saves immediately.
 - **Never drop an article the feed still lists.** `merge` keeps up to 200 older articles per feed, plus everything in the latest fetch; dropping a listed one would bring it back as unread on the next refresh.
