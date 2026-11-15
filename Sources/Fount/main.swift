@@ -160,6 +160,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.addItem(withTitle: String(localized: "Zoom Out"), action: #selector(MainWindowController.zoomOut(_:)), keyEquivalent: "-")
         viewMenu.addItem(withTitle: String(localized: "Actual Size"), action: #selector(MainWindowController.actualSize(_:)), keyEquivalent: "0")
         viewMenu.addItem(.separator())
+        viewMenu.addItem(withTitle: String(localized: "Bigger List Text"), action: #selector(MainWindowController.biggerListText(_:)), keyEquivalent: "+").keyEquivalentModifierMask = [.command, .option]
+        viewMenu.addItem(withTitle: String(localized: "Smaller List Text"), action: #selector(MainWindowController.smallerListText(_:)), keyEquivalent: "-").keyEquivalentModifierMask = [.command, .option]
+        viewMenu.addItem(withTitle: String(localized: "Default List Text Size"), action: #selector(MainWindowController.defaultListTextSize(_:)), keyEquivalent: "0").keyEquivalentModifierMask = [.command, .option]
+        viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: String(localized: "Toggle Sidebar"), action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s").keyEquivalentModifierMask = [.command, .control]
         main.addItem(withTitle: "", action: nil, keyEquivalent: "").submenu = viewMenu
 
@@ -168,6 +172,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         articleMenu.addItem(withTitle: String(localized: "Copy Link"), action: #selector(MainWindowController.copyLink(_:)), keyEquivalent: "C").keyEquivalentModifierMask = [.command, .shift]
         articleMenu.addItem(withTitle: String(localized: "Mark as Read"), action: #selector(MainWindowController.toggleRead(_:)), keyEquivalent: "U").keyEquivalentModifierMask = [.command, .shift, .option]
         articleMenu.addItem(withTitle: String(localized: "Mark All as Read"), action: #selector(MainWindowController.markAllRead(_:)), keyEquivalent: "k")
+        articleMenu.addItem(.separator())
+        let browserMenu = NSMenu(title: String(localized: "Browser"))
+        browserMenu.delegate = BrowserMenuDelegate.shared
+        articleMenu.addItem(withTitle: String(localized: "Browser"), action: nil, keyEquivalent: "").submenu = browserMenu
         main.addItem(withTitle: "", action: nil, keyEquivalent: "").submenu = articleMenu
 
         let windowMenu = NSMenu(title: String(localized: "Window"))

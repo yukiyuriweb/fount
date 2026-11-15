@@ -7,7 +7,7 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 - `./build.sh` builds a release binary, then assembles `build/Fount.app`, adds the icon and ad-hoc signs it. `./build.sh --install` also copies it to `~/Applications`, replacing any copy there.
 - `swift build -c release` alone is enough to check that the code compiles.
 - The app icon is drawn by `scripts/make-icon.swift`; `build.sh` regenerates it on every build. Don't commit image files for it.
-- Swift language mode is 5 (`swift-tools-version:5.9`). `main.swift` wraps app startup in `MainActor.assumeIsolated`.
+- The app requires macOS 26 (`swift-tools-version:6.2` for `.v26`), so the binary records SDK 26 and gets Liquid Glass; SwiftPM records the deployment target as the SDK version. The Swift language mode stays 5 (`swiftLanguageModes: [.v5]`). `main.swift` wraps app startup in `MainActor.assumeIsolated`.
 
 ## Workflow
 
@@ -18,14 +18,14 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 
 ## Conventions in the code
 
-- **Show articles as web pages; don't parse article bodies.** That is the point of the app. `FeedParser` keeps only the title, link, ID and date of each item.
+- **Show articles as web pages; don't fetch or render article bodies.** That is the point of the app. `FeedParser` keeps the title, link, ID, date and thumbnail of each item, plus a plain-text excerpt (at most 300 characters) from the summary the feed itself carries, falling back to the start of its content. The excerpt is drawn faintly under the title to space the titles apart; it is not meant to be read.
 - **Never fetch on the main thread.** `Fetcher` is nonisolated and called from `Task`s; results come back to the `@MainActor` `Store`.
 - **Change data only through `Store`.** Every change goes through `changed()`, which recounts unread articles, notifies the window and schedules a save one second later. `applicationWillTerminate` saves immediately.
 - **Never drop an article the feed still lists.** `merge` keeps up to 200 older articles per feed, plus everything in the latest fetch; dropping a listed one would bring it back as unread on the next refresh.
 - **Articles are identified by `Article.key`** (feed URL + item ID, falling back to the link). Table reloads restore the selection by key, inside the `reloading` flag so that restoring it doesn't count as a user selection.
-- With "Unread" on, the open article stays listed after it turns read, until the selection or filter changes.
+- With "Unread" on, articles read since the last manual Refresh (`keptRead`) stay listed, so the reader can go back to them; Refresh clears them out together, keeping only the open article. The 30-minute automatic refresh leaves them alone. Articles the user scrolls past the top of the list are marked read and kept the same way; only live scrolls (`NSScrollView.didLiveScrollNotification`) count, so reloads, feed switches and sorting never mark anything read. Starting a live scroll also clears the page and the selection (`closeArticle`).
 - **Keep refreshing while the window is closed.** Feeds list only their latest items (Lifehacker Japan: 20, about 12 hours), so articles that scroll out while Fount isn't running are lost for good. Closing the window switches the app to the `.accessory` activation policy, leaving a menu bar item with the unread count; the window is not released, and the store and refresh timer keep running. Fount registers itself to open at login once (`SMAppService.mainApp`), starts in the menu bar when launched at login, and refreshes on wake.
-- Links meant for a new window, and ⌘-clicked links, open in the default browser rather than inside the app.
+- Links meant for a new window, and ⌘-clicked links, open in the browser rather than inside the app. `Browser.open` uses the one picked in Article > Browser, or the system default.
 
 ## Verifying changes
 

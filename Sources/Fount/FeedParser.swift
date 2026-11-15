@@ -14,12 +14,15 @@ struct ParsedItem {
     var updated: Date?
     /// A thumbnail the feed itself provides; article pages are never fetched for one.
     var image: String?
+    /// The start of the item's summary as plain text, shown under the title in the list.
+    var excerpt: String?
 }
 
-/// Parses RSS 2.0, RSS 1.0 (RDF) and Atom. Only what the reader shows is kept:
-/// the article body is never parsed, because articles are shown as web pages.
+/// Parses RSS 2.0, RSS 1.0 (RDF) and Atom. Only what the reader shows is kept: articles are shown as
+/// web pages, so the only text taken from an item besides its title is a short plain-text excerpt.
 final class FeedParser: NSObject, XMLParserDelegate {
     private static let mediaRSS = "http://search.yahoo.com/mrss/"
+    private static let atom = "http://www.w3.org/2005/Atom"
     private static let hatena = "http://www.hatena.ne.jp/info/xmlns#"
 
     private var stack: [String] = []
@@ -28,6 +31,9 @@ final class FeedParser: NSObject, XMLParserDelegate {
     private var feed = ParsedFeed()
     private var item: ParsedItem?
     private var base: URL?
+    /// The summary or content being read for an item's excerpt, with all the text inside it: an Atom
+    /// `type="xhtml"` one holds its text in child elements, which reset `text`.
+    private var excerptSource: (name: String, depth: Int, html: Bool, text: String)?
 
     /// Returns nil when `data` isn't a feed (for example an HTML page).
     /// Relative links, which Atom allows, are resolved against `base`.
@@ -48,6 +54,16 @@ final class FeedParser: NSObject, XMLParserDelegate {
         if root == nil { root = name }
         stack.append(name)
         text = ""
+        if excerptSource != nil {
+            excerptSource!.text += " "  // keeps the words of adjacent XHTML elements apart
+        } else if item != nil, parent == "item" || parent == "entry", namespaceURI != Self.mediaRSS,
+                  ["description", "summary", "content", "encoded"].contains(name) {
+            // Atom says how its text is encoded, and only type="html" is markup; XML parsing has already
+            // decoded "text" (the default) and "xhtml". RSS descriptions and content:encoded carry HTML.
+            let type = attributes["type"]?.lowercased()
+            let html = namespaceURI == Self.atom ? type == "html" || type == "text/html" : true
+            excerptSource = (name, stack.count, html, "")
+        }
         switch name {
         case "item", "entry":
             item = ParsedItem(id: attributes["about"] ?? "")
@@ -88,10 +104,15 @@ final class FeedParser: NSObject, XMLParserDelegate {
         return ["jpg", "jpeg", "png", "gif", "webp", "avif"].contains(ext)
     }
 
-    func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        text += string
+        excerptSource?.text += string
+    }
 
     func parser(_ parser: XMLParser, foundCDATA block: Data) {
-        text += String(decoding: block, as: UTF8.self)
+        let string = String(decoding: block, as: UTF8.self)
+        text += string
+        excerptSource?.text += string
     }
 
     func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
@@ -99,6 +120,7 @@ final class FeedParser: NSObject, XMLParserDelegate {
         if name == "item" || name == "entry", var done = item {
             done.link = resolve(done.link)
             done.image = done.image.map(resolve)
+            if done.excerpt == done.title { done.excerpt = nil }  // some feeds repeat the title
             if done.id.isEmpty { done.id = done.link }
             if !done.link.isEmpty { feed.items.append(done) }
             item = nil
@@ -110,6 +132,16 @@ final class FeedParser: NSObject, XMLParserDelegate {
             case "pubDate", "published", "date": item!.date = Self.date(value)
             case "updated": item!.updated = Self.date(value)
             case "imageurl" where namespaceURI == Self.hatena: setImage(value)
+            case "description", "summary", "content", "encoded":
+                guard let source = excerptSource, source.name == name, source.depth == stack.count else { break }
+                excerptSource = nil
+                let excerpt = Self.excerpt(source.text, html: source.html)
+                if name == "description" || name == "summary" {
+                    item!.excerpt = excerpt ?? item!.excerpt
+                } else if item!.excerpt == nil {
+                    // Without a summary, the start of the content the feed carries (Qiita's Atom has only that).
+                    item!.excerpt = excerpt
+                }
             default: break
             }
         } else if parent == "channel" || parent == "feed" {
@@ -121,6 +153,48 @@ final class FeedParser: NSObject, XMLParserDelegate {
         }
         stack.removeLast()
         text = ""
+    }
+
+    /// The first 300 characters of `source` as plain text, or nil if there is none. Only HTML has its tags
+    /// stripped and entities decoded: in plain text, "<T>" and "&amp;" are what the author wrote.
+    static func excerpt(_ source: String, html: Bool) -> String? {
+        var s = source
+        if html {
+            s = s.replacingOccurrences(of: "<[^>]*>", with: " ", options: .regularExpression)
+            s = decodeEntities(s)
+        }
+        s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return nil }
+        return s.count > 300 ? String(s.prefix(300)) : s
+    }
+
+    private static let named = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
+
+    private static let entity = try! NSRegularExpression(pattern: "&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z]+);")
+
+    /// Decodes the named entities feeds use and every numeric one, leaving unknown ones as they are.
+    static func decodeEntities(_ s: String) -> String {
+        guard s.contains("&") else { return s }
+        var result = ""
+        result.reserveCapacity(s.utf8.count)
+        var last = s.startIndex
+        for match in entity.matches(in: s, range: NSRange(s.startIndex..., in: s)) {
+            guard let whole = Range(match.range, in: s), let body = Range(match.range(at: 1), in: s) else { continue }
+            result += s[last..<whole.lowerBound]
+            let name = String(s[body])
+            var decoded: String?
+            if name.hasPrefix("#") {
+                let hex = name.dropFirst().first.map { $0 == "x" || $0 == "X" } ?? false
+                let digits = hex ? name.dropFirst(2) : name.dropFirst()
+                decoded = UInt32(digits, radix: hex ? 16 : 10).flatMap(Unicode.Scalar.init).map { String(Character($0)) }
+            } else {
+                decoded = named[name]
+            }
+            result += decoded ?? String(s[whole])
+            last = whole.upperBound
+        }
+        return result + s[last...]
     }
 
     private func resolve(_ link: String) -> String {
