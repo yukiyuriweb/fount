@@ -7,7 +7,7 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 - `./build.sh` builds a release binary, then assembles `build/Fount.app`, adds the icon and ad-hoc signs it. `./build.sh --install` also copies it to `~/Applications`, replacing any copy there.
 - `swift build -c release` alone is enough to check that the code compiles.
 - The app icon is drawn by `scripts/make-icon.swift`; `build.sh` regenerates it on every build. Don't commit image files for it.
-- Swift language mode is 5 (`swift-tools-version:5.9`). `main.swift` wraps app startup in `MainActor.assumeIsolated`.
+- The app requires macOS 26 (`swift-tools-version:6.2` for `.v26`), so the binary records SDK 26 and gets Liquid Glass; SwiftPM records the deployment target as the SDK version. The Swift language mode stays 5 (`swiftLanguageModes: [.v5]`). `main.swift` wraps app startup in `MainActor.assumeIsolated`.
 
 ## Workflow
 
@@ -23,7 +23,7 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 - **Change data only through `Store`.** Every change goes through `changed()`, which recounts unread articles, notifies the window and schedules a save one second later. `applicationWillTerminate` saves immediately.
 - **Never drop an article the feed still lists.** `merge` keeps up to 200 older articles per feed, plus everything in the latest fetch; dropping a listed one would bring it back as unread on the next refresh.
 - **Articles are identified by `Article.key`** (feed URL + item ID, falling back to the link). Table reloads restore the selection by key, inside the `reloading` flag so that restoring it doesn't count as a user selection.
-- With "Unread" on, the open article stays listed after it turns read, until the selection or filter changes.
+- With "Unread" on, articles read since the last manual Refresh (`keptRead`) stay listed, so the reader can go back to them; Refresh clears them out together, keeping only the open article. The 30-minute automatic refresh leaves them alone. Articles the user scrolls past the top of the list are marked read and kept the same way; only live scrolls (`NSScrollView.didLiveScrollNotification`) count, so reloads, feed switches and sorting never mark anything read. Starting a live scroll also clears the page and the selection (`closeArticle`).
 - Links meant for a new window, and ⌘-clicked links, open in the browser rather than inside the app. `Browser.open` uses the one picked in Article > Browser, or the system default.
 
 ## Verifying changes
