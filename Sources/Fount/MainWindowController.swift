@@ -20,6 +20,9 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var loadedKey: String?
     private var visible: [Article] = []
     private var unreadOnly = UserDefaults.standard.bool(forKey: "unreadOnly")
+    /// Articles read since the last Refresh. They stay listed under Unread, so the reader can go back to them,
+    /// until Refresh clears them out together.
+    private var keptRead: Set<String> = []
     /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
     private enum FeedSort: String, CaseIterable { case title, added, latest }
     private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
@@ -160,8 +163,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private func reloadArticles() {
         visible = store.articles.filter {
             (selectedFeed == nil || $0.feed == selectedFeed)
-                // Keep the open article listed after it turns read.
-                && (!unreadOnly || !$0.read || $0.key == selectedKey)
+                // Keep articles read since the last Refresh, and the open one, listed after they turn read.
+                && (!unreadOnly || !$0.read || keptRead.contains($0.key) || $0.key == selectedKey)
         }
         if oldestFirst { visible.reverse() }  // the store keeps articles newest first
         reloading = true
@@ -236,6 +239,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             loadedKey = article.key
             webView.load(URLRequest(url: url))
         }
+        // Only articles that turn read here; an already-read one opened under All doesn't belong under Unread.
+        if !article.read { keptRead.insert(article.key) }
         store.setRead(article.key, true)
     }
 
@@ -349,7 +354,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         }
     }
 
-    @objc func refresh(_ sender: Any?) { store.refresh() }
+    /// Clears the articles read since the last Refresh out of the Unread list, then fetches.
+    @objc func refresh(_ sender: Any?) {
+        keptRead.removeAll()
+        reloadArticles()
+        store.refresh()
+    }
 
     @objc func filterChanged(_ sender: NSSegmentedControl) {
         unreadOnly = sender.selectedSegment == 1
@@ -378,6 +388,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     @objc func toggleRead(_ sender: Any?) {
         guard let article = currentArticle else { return }
+        if !article.read { keptRead.insert(article.key) }
         store.setRead(article.key, !article.read)
     }
 
