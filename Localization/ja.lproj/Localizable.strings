@@ -77,3 +77,7 @@
 "Bigger List Text" = "一覧の文字を拡大";
 "Smaller List Text" = "一覧の文字を縮小";
 "Default List Text Size" = "一覧の文字を標準サイズに";
+
+/* Menu bar */
+"Open Fount" = "Fount を開く";
+"Open at Login" = "ログイン時に開く";

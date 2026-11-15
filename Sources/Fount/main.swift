@@ -1,21 +1,114 @@
 import AppKit
+import ServiceManagement
 
+/// Fount keeps refreshing after its window is closed: it leaves the Dock and stays in the menu bar with the
+/// unread count, until Quit. Feeds list only their latest items, so a reader that isn't running misses
+/// whatever scrolls out of them meanwhile.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = Store()
     private var controller: MainWindowController?
+    private var statusItem: NSStatusItem?
+    private let loginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleOpenAtLogin(_:)), keyEquivalent: "")
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = makeMenu()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        controller = MainWindowController(store: store)
+        // Read before anything else handles an Apple event.
+        let atLogin = Self.launchedAsLoginItem
+        let controller = MainWindowController(store: store)
+        self.controller = controller
+        controller.onUnreadCountChange = { [weak self] in self?.showUnread($0) }
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: controller.window, queue: .main) { _ in
+            MainActor.assumeIsolated { _ = NSApp.setActivationPolicy(.accessory) }
+        }
+        setUpStatusItem()
+        showUnread(store.totalUnread)
+        registerAtLoginOnce()
+        if atLogin {
+            NSApp.setActivationPolicy(.accessory)
+        } else {
+            openWindow(nil)
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Opening Fount again from the Finder or Spotlight while it sits in the menu bar brings the window back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openWindow(nil)
+        return true
+    }
+
+    @objc func openWindow(_ sender: Any?) {
+        NSApp.setActivationPolicy(.regular)
         controller?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // MARK: Menu bar
+
+    private func setUpStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.image = NSImage(systemSymbolName: "dot.radiowaves.up.forward", accessibilityDescription: "Fount")
+        item.button?.imagePosition = .imageLeading
+        let menu = NSMenu()
+        menu.delegate = self
+        menu.addItem(withTitle: String(localized: "Open Fount"), action: #selector(openWindow(_:)), keyEquivalent: "").target = self
+        let refresh = menu.addItem(withTitle: String(localized: "Refresh"), action: #selector(MainWindowController.refresh(_:)), keyEquivalent: "")
+        refresh.target = controller
+        menu.addItem(.separator())
+        loginItem.target = self
+        menu.addItem(loginItem)
+        menu.addItem(.separator())
+        menu.addItem(withTitle: String(localized: "Quit Fount"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        item.menu = menu
+        statusItem = item
+    }
+
+    private func showUnread(_ count: Int) {
+        statusItem?.button?.title = count > 0 ? " \(count)" : ""
+        statusItem?.button?.toolTip = count > 0 ? String(localized: "\(count) unread") : "Fount"
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    }
+
+    // MARK: Open at login
+
+    /// Registers once; after that the menu bar item's toggle is the user's choice. A failed attempt is
+    /// tried again on the next launch rather than leaving Fount off the login items for good.
+    private func registerAtLoginOnce() {
+        let key = "registeredOpenAtLogin"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        do {
+            try SMAppService.mainApp.register()
+            UserDefaults.standard.set(true, forKey: key)
+        } catch {
+            NSLog("Fount couldn't register to open at login: %@", error.localizedDescription)
+        }
+    }
+
+    @objc func toggleOpenAtLogin(_ sender: NSMenuItem) {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            } else {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    /// A login item starts in the menu bar without opening its window.
+    private static var launchedAsLoginItem: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent, event.eventID == kAEOpenApplication else { return false }
+        return event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+    }
 
     func applicationWillTerminate(_ notification: Notification) { store.save() }
 
