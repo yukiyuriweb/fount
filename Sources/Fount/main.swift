@@ -75,6 +75,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         articleMenu.addItem(withTitle: String(localized: "Copy Link"), action: #selector(MainWindowController.copyLink(_:)), keyEquivalent: "C").keyEquivalentModifierMask = [.command, .shift]
         articleMenu.addItem(withTitle: String(localized: "Mark as Read"), action: #selector(MainWindowController.toggleRead(_:)), keyEquivalent: "U").keyEquivalentModifierMask = [.command, .shift, .option]
         articleMenu.addItem(withTitle: String(localized: "Mark All as Read"), action: #selector(MainWindowController.markAllRead(_:)), keyEquivalent: "k")
+        articleMenu.addItem(.separator())
+        let browserMenu = NSMenu(title: String(localized: "Browser"))
+        browserMenu.delegate = BrowserMenuDelegate.shared
+        articleMenu.addItem(withTitle: String(localized: "Browser"), action: nil, keyEquivalent: "").submenu = browserMenu
         main.addItem(withTitle: "", action: nil, keyEquivalent: "").submenu = articleMenu
 
         let windowMenu = NSMenu(title: String(localized: "Window"))

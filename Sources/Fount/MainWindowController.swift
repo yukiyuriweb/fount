@@ -445,7 +445,12 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         let url = sender is NSMenuItem && articleTable.clickedRow >= 0
             ? currentArticle.flatMap { URL(string: $0.link) }
             : webView.url?.scheme?.hasPrefix("http") == true ? webView.url : currentArticle.flatMap { URL(string: $0.link) }
-        if let url { NSWorkspace.shared.open(url) }
+        if let url { Browser.open(url) }
+    }
+
+    /// Article > Browser; an item without an app is the system default.
+    @objc func chooseBrowser(_ sender: NSMenuItem) {
+        Browser.chosen = sender.representedObject as? URL
     }
 
     @objc func copyLink(_ sender: Any?) {
@@ -532,6 +537,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             item.state = (item.tag == 1) == oldestFirst ? .on : .off
         case #selector(setFeedSortOrder(_:)):
             item.state = (item.tag == 1) == sortDescending ? .on : .off
+        case #selector(chooseBrowser(_:)):
+            item.state = (item.representedObject as? URL)?.path == Browser.chosen?.path ? .on : .off
         case #selector(openInBrowser(_:)), #selector(copyLink(_:)):
             return currentArticle != nil
         case #selector(toggleRead(_:)):
@@ -626,19 +633,19 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
-        // ⌘-click opens a link in the default browser, as in Safari.
+        // ⌘-click opens a link in the browser, as in Safari.
         if action.navigationType == .linkActivated, action.modifierFlags.contains(.command), let url = action.request.url {
-            NSWorkspace.shared.open(url)
+            Browser.open(url)
             decisionHandler(.cancel)
         } else {
             decisionHandler(.allow)
         }
     }
 
-    /// Links meant for a new window (target=_blank) go to the default browser.
+    /// Links meant for a new window (target=_blank) go to the browser.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = action.request.url { NSWorkspace.shared.open(url) }
+        if let url = action.request.url { Browser.open(url) }
         return nil
     }
 }
