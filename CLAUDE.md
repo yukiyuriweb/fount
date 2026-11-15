@@ -7,7 +7,7 @@ Fount is a lightweight, native macOS RSS reader (Swift + AppKit + WebKit, no dep
 - `./build.sh` builds a release binary, then assembles `build/Fount.app`, adds the icon and ad-hoc signs it. `./build.sh --install` also copies it to `~/Applications`, replacing any copy there.
 - `swift build -c release` alone is enough to check that the code compiles.
 - The app icon is drawn by `scripts/make-icon.swift`; `build.sh` regenerates it on every build. Don't commit image files for it.
-- Swift language mode is 5 (`swift-tools-version:5.9`). `main.swift` wraps app startup in `MainActor.assumeIsolated`.
+- The app requires macOS 26 (`swift-tools-version:6.2` for `.v26`), so the binary records SDK 26 and gets Liquid Glass; SwiftPM records the deployment target as the SDK version. The Swift language mode stays 5 (`swiftLanguageModes: [.v5]`). `main.swift` wraps app startup in `MainActor.assumeIsolated`.
 
 ## Workflow
 
