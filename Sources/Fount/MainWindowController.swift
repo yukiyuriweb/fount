@@ -433,7 +433,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         }
     }
 
-    /// Clears the articles read since the last Refresh out of the Unread list, then fetches.
+    /// Clears the articles read since the last Refresh out of the Unread list, scrolls the list back to the top,
+    /// then fetches.
     @objc func refresh(_ sender: Any?) {
         // Articles scrolled past just before are read too, so they go with the rest.
         scrollSettleTimer?.invalidate()
@@ -441,6 +442,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         scrolledPast = []
         keptRead.removeAll()
         reloadArticles()
+        articleTable.scrollRowToVisible(0)
         store.refresh()
     }
 
