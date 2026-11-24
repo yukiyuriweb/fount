@@ -10,7 +10,7 @@ Many readers re-render articles in their own reader view, which breaks code bloc
 - Paste a page URL (e.g. `https://zenn.dev/topics/swift`) and Fount finds its feed
 - Import subscriptions from OPML (e.g. exported from NetNewsWire)
 - Refreshes on launch, every 30 minutes and on waking from sleep; unread count in the Dock and the menu bar
-- Closing the window keeps Fount in the menu bar, still refreshing, so articles that busy feeds push out of their latest items aren't missed; it opens at login (Open at Login in the menu bar item turns that off), and Quit stops it
+- Closing the window keeps Fount in the menu bar, still refreshing, so articles that busy feeds push out of their latest items aren't missed; clicking the menu bar item opens the window again, and right-clicking it shows Refresh, Open at Login (on by default) and Quit
 - Written in Swift with AppKit and WebKit only — no Electron, no dependencies
 
 ## Requirements

@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = Store()
     private var controller: MainWindowController?
     private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
     private let loginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleOpenAtLogin(_:)), keyEquivalent: "")
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -64,8 +65,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(loginItem)
         menu.addItem(.separator())
         menu.addItem(withTitle: String(localized: "Quit Fount"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
-        item.menu = menu
+        // A click opens the window; the menu is for a right-click or Control-click.
+        statusMenu = menu
+        item.button?.target = self
+        item.button?.action = #selector(statusItemClicked(_:))
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
+    }
+
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            // Attached only for this click, so a plain click doesn't open it
+            statusItem?.menu = statusMenu
+            sender.performClick(nil)
+            statusItem?.menu = nil
+        } else {
+            openWindow(nil)
+        }
     }
 
     private func showUnread(_ count: Int) {
