@@ -127,7 +127,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
     }
 
-    func applicationWillTerminate(_ notification: Notification) { store.save() }
+    func applicationWillTerminate(_ notification: Notification) {
+        controller?.finishReading()
+        store.save()
+    }
 
     private func makeMenu() -> NSMenu {
         let main = NSMenu()

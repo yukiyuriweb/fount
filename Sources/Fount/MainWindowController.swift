@@ -5,7 +5,7 @@ import WebKit
 @MainActor
 final class MainWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate,
     NSToolbarDelegate, NSMenuDelegate, NSMenuItemValidation, NSToolbarItemValidation,
-    WKNavigationDelegate, WKUIDelegate {
+    WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
 
     private let store: Store
     private let feedTable = NSTableView()
@@ -28,6 +28,16 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var scrollSettleTimer: Timer?
     /// The first visible row when the current live scroll began: only rows that cross the top during it count.
     private var liveScrollStartRow: Int?
+    /// Set while switching feeds opens the top article, so that opening isn't recorded as the reader's pick.
+    private var openingTopArticle = false
+    /// The article whose page is measured for how far it was scrolled, and the deepest point reached so far
+    /// (the bottom of the window as a fraction of the page's height). Recorded when the reader leaves it.
+    private var depthKey: String?
+    private var depth: Double?
+    /// The navigation that loads `depthKey`'s page. The page's reports count only once it has committed, so that
+    /// late reports from the page before don't, and stop once a link inside the article is followed.
+    private var depthNavigation: WKNavigation?
+    private var measuringDepth = false
     /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
     private enum FeedSort: String, CaseIterable { case title, added, latest }
     private var feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .title
@@ -53,7 +63,11 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     init(store: Store) {
         self.store = store
-        webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+        let configuration = WKWebViewConfiguration()
+        // Runs apart from the page's own scripts, so a page can neither see nor break it.
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: Self.depthScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+        webView = WKWebView(frame: .zero, configuration: configuration)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -70,6 +84,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         articleTable.menu = contextMenu()
         articleTable.onKey = { [unowned self] in self.handleKey($0) }
 
+        webView.configuration.userContentController.add(self, contentWorld: .defaultClient, name: "depth")
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
@@ -237,6 +252,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.keptRead.formUnion(self.scrolledPast)
+                self.recordSkipped()
                 self.store.markRead(self.scrolledPast)
                 self.scrolledPast = []
             }
@@ -255,6 +271,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     }
 
     private func showPlaceholder() {
+        finishReading()
         loadedKey = nil
         let message = store.feeds.isEmpty
             ? String(localized: "Add a feed with ⌘N, or import an OPML file from the File menu.")
@@ -305,7 +322,9 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
             if visible.isEmpty {
                 showPlaceholder()
             } else {
+                openingTopArticle = true
                 articleTable.selectRowIndexes([0], byExtendingSelection: false)
+                openingTopArticle = false
             }
         } else if articleTable.selectedRow >= 0 {
             open(visible[articleTable.selectedRow])
@@ -315,12 +334,56 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private func open(_ article: Article) {
         selectedKey = article.key
         if loadedKey != article.key, let url = URL(string: article.link) {
+            finishReading()
             loadedKey = article.key
-            webView.load(URLRequest(url: url))
+            depthKey = article.key
+            depthNavigation = webView.load(URLRequest(url: url))
         }
         // Only articles that turn read here; an already-read one opened under All doesn't belong under Unread.
         if !article.read { keptRead.insert(article.key) }
         store.setRead(article.key, true)
+        if !openingTopArticle { record(.opened, [article]) }
+    }
+
+    private func record(_ kind: History.Kind, _ articles: [Article]) {
+        History.record(kind, articles) { [store] in store.feed($0)?.title }
+    }
+
+    /// Records how far the article on the page was scrolled, if its page reported it, and stops measuring.
+    /// Called when another article or the placeholder replaces it, and when Fount quits.
+    func finishReading() {
+        if let key = depthKey, let depth, let article = store.articles.first(where: { $0.key == key }) {
+            History.record(.depth, [article], depth: depth) { [store] in store.feed($0)?.title }
+        }
+        depthKey = nil
+        depth = nil
+        depthNavigation = nil
+        measuringDepth = false
+    }
+
+    /// Reports the deepest point the page has been scrolled to, as a fraction of its height, whenever it grows
+    /// by at least 2 % or reaches the end. A page shorter than the window reports 1 at once.
+    private static let depthScript = """
+        (() => {
+          let deepest = 0;
+          const report = () => {
+            const height = document.documentElement.scrollHeight;
+            if (!height) return;
+            const depth = Math.min(1, (window.scrollY + window.innerHeight) / height);
+            if (depth >= deepest + 0.02 || (depth === 1 && deepest < 1)) {
+              deepest = depth;
+              window.webkit.messageHandlers.depth.postMessage(depth);
+            }
+          };
+          window.addEventListener("scroll", report, { passive: true });
+          window.addEventListener("load", report);
+          report();
+        })();
+        """
+
+    /// Records the articles collected in `scrolledPast`, which are unread ones, before they are marked read.
+    private func recordSkipped() {
+        record(.skipped, store.articles.filter { scrolledPast.contains($0.key) && !$0.read })
     }
 
     private var currentArticle: Article? {
@@ -438,6 +501,7 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     @objc func refresh(_ sender: Any?) {
         // Articles scrolled past just before are read too, so they go with the rest.
         scrollSettleTimer?.invalidate()
+        recordSkipped()
         store.markRead(scrolledPast)
         scrolledPast = []
         keptRead.removeAll()
@@ -462,7 +526,10 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
         let url = sender is NSMenuItem && articleTable.clickedRow >= 0
             ? currentArticle.flatMap { URL(string: $0.link) }
             : webView.url?.scheme?.hasPrefix("http") == true ? webView.url : currentArticle.flatMap { URL(string: $0.link) }
-        if let url { Browser.open(url) }
+        if let url {
+            Browser.open(url)
+            if let article = currentArticle { record(.browser, [article]) }
+        }
     }
 
     /// Article > Browser; an item without an app is the system default.
@@ -667,8 +734,19 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     // MARK: Web view
 
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        if navigation === depthNavigation { measuringDepth = true }
+    }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard measuringDepth, let value = message.body as? Double else { return }
+        depth = max(depth ?? 0, value)
+    }
+
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
+        // A page reached through a link inside the article isn't the article; its depth would mislead.
+        if action.navigationType == .linkActivated, action.targetFrame?.isMainFrame == true { measuringDepth = false }
         // ⌘-click opens a link in the browser, as in Safari.
         if action.navigationType == .linkActivated, action.modifierFlags.contains(.command), let url = action.request.url {
             Browser.open(url)
