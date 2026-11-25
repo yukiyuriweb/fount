@@ -35,7 +35,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     private var depthKey: String?
     private var depth: Double?
     /// The navigation that loads `depthKey`'s page. The page's reports count only once it has committed, so that
-    /// late reports from the page before don't, and stop once a link inside the article is followed.
+    /// late reports from the page before don't, and stop once any other page replaces it. Jumps within the page
+    /// (a table of contents) and ⌘-clicked links, which open in the browser, commit nothing and keep it measured.
     private var depthNavigation: WKNavigation?
     private var measuringDepth = false
     /// Sidebar order, saved by raw value. Menu item tags are indexes into `allCases`.
@@ -735,7 +736,8 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
     // MARK: Web view
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        if navigation === depthNavigation { measuringDepth = true }
+        // Another page replacing the article, say through a link in it, isn't the article; its depth would mislead.
+        measuringDepth = navigation === depthNavigation
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -745,8 +747,6 @@ final class MainWindowController: NSWindowController, NSTableViewDataSource, NST
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
-        // A page reached through a link inside the article isn't the article; its depth would mislead.
-        if action.navigationType == .linkActivated, action.targetFrame?.isMainFrame == true { measuringDepth = false }
         // ⌘-click opens a link in the browser, as in Safari.
         if action.navigationType == .linkActivated, action.modifierFlags.contains(.command), let url = action.request.url {
             Browser.open(url)
