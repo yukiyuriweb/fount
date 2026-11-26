@@ -81,3 +81,18 @@
 /* Menu bar */
 "Open Fount" = "Fount を開く";
 "Open at Login" = "ログイン時に開く";
+
+/* Reading activity */
+"Reading Activity…" = "閲覧状況…";
+"Reading Activity" = "閲覧状況";
+"Site" = "サイト";
+"Articles Selected" = "記事を選択";
+"Opened in Browser" = "ブラウザで開いた回数";
+"Skipped" = "読み飛ばし";
+"Avg. Page Depth" = "平均到達率";
+"Counts are grouped by the article’s site. Page depth is the furthest point shown, including the visible part of the page." = "記事のサイト別に集計しています。到達率は画面に表示された範囲を含め、ページのどこまで表示したかを示します。";
+"Loading reading activity…" = "閲覧状況を集計中…";
+"Recorded on %@" = "記録日 %@";
+"Recorded from %@ to %@" = "記録期間 %1$@ 〜 %2$@";
+"No reading activity recorded yet." = "閲覧履歴はまだありません。";
+"Couldn’t load reading activity." = "閲覧履歴を読み込めませんでした。";

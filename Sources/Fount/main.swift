@@ -8,6 +8,7 @@ import ServiceManagement
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = Store()
     private var controller: MainWindowController?
+    private lazy var readingActivity = ReadingActivityController()
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private let loginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleOpenAtLogin(_:)), keyEquivalent: "")
@@ -49,6 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    @objc private func showReadingActivity(_ sender: Any?) {
+        NSApp.activate(ignoringOtherApps: true)
+        readingActivity.showWindow(sender)
+    }
+
     // MARK: Menu bar
 
     private func setUpStatusItem() {
@@ -60,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: String(localized: "Open Fount"), action: #selector(openWindow(_:)), keyEquivalent: "").target = self
         let refresh = menu.addItem(withTitle: String(localized: "Refresh"), action: #selector(MainWindowController.refresh(_:)), keyEquivalent: "")
         refresh.target = controller
+        menu.addItem(withTitle: String(localized: "Reading Activity…"), action: #selector(showReadingActivity(_:)), keyEquivalent: "").target = self
         menu.addItem(.separator())
         loginItem.target = self
         menu.addItem(loginItem)
@@ -185,6 +192,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         viewMenu.addItem(withTitle: String(localized: "Default List Text Size"), action: #selector(MainWindowController.defaultListTextSize(_:)), keyEquivalent: "0").keyEquivalentModifierMask = [.command, .option]
         viewMenu.addItem(.separator())
         viewMenu.addItem(withTitle: String(localized: "Toggle Sidebar"), action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s").keyEquivalentModifierMask = [.command, .control]
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(withTitle: String(localized: "Reading Activity…"), action: #selector(showReadingActivity(_:)), keyEquivalent: "").target = self
         main.addItem(withTitle: "", action: nil, keyEquivalent: "").submenu = viewMenu
 
         let articleMenu = NSMenu(title: String(localized: "Article"))
