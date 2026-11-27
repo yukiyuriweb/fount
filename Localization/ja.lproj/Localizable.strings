@@ -96,3 +96,25 @@
 "Recorded from %@ to %@" = "記録期間 %1$@ 〜 %2$@";
 "No reading activity recorded yet." = "閲覧履歴はまだありません。";
 "Couldn’t load reading activity." = "閲覧履歴を読み込めませんでした。";
+
+/* GitHub sync */
+"GitHub Sync…" = "GitHub 同期…";
+"GitHub Sync" = "GitHub 同期";
+"Connected to GitHub as %@. Sync uploads your feeds, article list, read status, and reading activity summary to a secret Gist. Anyone with its URL can read it." = "GitHub に %@ として接続しています。同期すると、購読フィード・記事一覧・既読状態・閲覧状況の集計が Secret Gist に送信されます。URL を知っている人は誰でも閲覧できます。";
+"Sync Now" = "今すぐ同期";
+"Disconnect" = "接続を解除";
+"Copy Gist URL" = "Gist の URL をコピー";
+"Connect to GitHub" = "GitHub に接続";
+"Enter this code in your browser and authorize Fount to write to Gists." = "ブラウザでこのコードを入力し、Fount に Gist への書き込みを許可してください。";
+"Connected to GitHub" = "GitHub に接続しました";
+"Signed in as %@. Open GitHub Sync again to upload your data." = "%@ としてログインしました。データを送信するには、「GitHub 同期」をもう一度開いてください。";
+"Fount synced to GitHub" = "GitHub に同期しました";
+"Copy the Gist URL to use on Android." = "Android で使うには、Gist の URL をコピーしてください。";
+"The previous Gist was not found on GitHub, so Fount created a new one. Copy its URL and save it again on Android." = "以前の Gist が GitHub に見つからなかったため、新しい Gist を作成しました。URL をコピーして、Android でもう一度保存してください。";
+"GitHub returned an unexpected response." = "GitHub から予期しない応答がありました。";
+"The GitHub verification code expired. Start the connection again." = "GitHub の確認コードの有効期限が切れました。もう一度接続してください。";
+"GitHub authorization was declined." = "GitHub での認可が拒否されました。";
+"Fount needs permission to write to GitHub Gists." = "Fount には GitHub Gist への書き込み権限が必要です。";
+"The GitHub connection has expired. Reconnect to GitHub and try again." = "GitHub への接続の有効期限が切れました。接続を解除して、もう一度接続してください。";
+"GitHub returned HTTP %lld." = "GitHub が HTTP %lld を返しました。";
+"Couldn’t access the GitHub credentials in Keychain (%d)." = "キーチェーンの GitHub 認証情報にアクセスできませんでした（%d）。";
