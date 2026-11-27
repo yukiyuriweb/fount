@@ -51,16 +51,15 @@ export function parseSnapshot(value: unknown): Snapshot {
     throw new Error('Fountの同期データを読み込めません。');
   }
 
-  const feedIDs = new Map<string, string>();
+  // A feed is identified by its URL, so a newer export that drops or reorders feeds
+  // never points an open feed screen at a different feed.
   const feedTitles = new Map<string, string>();
   const feeds: Feed[] = [];
   for (const value of data.feeds) {
     const feed = record(value);
-    if (!feed || !isText(feed.url) || !isText(feed.title) || feedIDs.has(feed.url)) continue;
-    const id = String(feeds.length);
-    feedIDs.set(feed.url, id);
+    if (!feed || !isText(feed.url) || !isText(feed.title) || feedTitles.has(feed.url)) continue;
     feedTitles.set(feed.url, feed.title);
-    feeds.push({ id, title: feed.title || feed.url });
+    feeds.push({ id: feed.url, title: feed.title || feed.url });
   }
 
   const seen = new Set<string>();
@@ -74,7 +73,7 @@ export function parseSnapshot(value: unknown): Snapshot {
     if (seen.has(id)) continue;
     seen.add(id);
     articles.push({
-      id, feedId: feedIDs.get(item.feed) ?? '', feedTitle: feedTitles.get(item.feed) || item.feed,
+      id, feedId: feedTitles.has(item.feed) ? item.feed : '', feedTitle: feedTitles.get(item.feed) || item.feed,
       title: item.title || item.link, link: item.link, date: item.date.slice(0, 10), read: item.read,
     });
   }

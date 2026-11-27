@@ -17,9 +17,11 @@ function FeedArticles({ snapshot, id }: { snapshot: Snapshot; id: string }) {
 
 export default function FeedScreen() {
   const { id, title } = useLocalSearchParams<{ id: string; title?: string }>();
+  const { snapshot } = useSnapshot();
+  const current = snapshot?.feeds.find((feed) => feed.id === id)?.title;
   return (
     <>
-      <Stack.Screen options={{ title: title ?? '' }} />
+      <Stack.Screen options={{ title: current ?? title ?? '' }} />
       <SnapshotGate>{(snapshot) => <FeedArticles snapshot={snapshot} id={id} />}</SnapshotGate>
     </>
   );
