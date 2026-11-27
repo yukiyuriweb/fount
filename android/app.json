@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Fount",
+    "slug": "fount-android",
+    "owner": "yukiyuriweb",
+    "version": "0.1.0",
+    "scheme": "fount",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "com.yukiyuriweb.fount",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0B4F6B",
+        "monochromeImage": "./assets/icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "afd7b081-5fe7-463a-8ac5-434983e6e726"
+      }
+    }
+  }
+}

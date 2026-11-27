@@ -1,9 +1,14 @@
-// Renders the app icon: swift scripts/make-icon.swift <out.png>
+// Renders the app icon: swift scripts/make-icon.swift <out.png> [--android | --monochrome]
 // A light bulb filled with spring water, the feed mark inside: a fount of ideas.
+// --android draws the background edge to edge, for a launcher that cuts its own shape;
+// --monochrome draws the bulb alone in white on transparent, for Android's themed icons.
 import AppKit
 
 let size: CGFloat = 1024
-let out = CommandLine.arguments.dropFirst().first ?? "icon.png"
+let arguments = CommandLine.arguments.dropFirst()
+let out = arguments.first { !$0.hasPrefix("--") } ?? "icon.png"
+let android = arguments.contains("--android")
+let monochrome = arguments.contains("--monochrome")
 
 let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size), pixelsHigh: Int(size),
                            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -24,7 +29,9 @@ let teal: UInt32 = 0x0B4F6B
 
 // Rounded-square body with a drop shadow, per the macOS icon grid (824pt body on 1024 canvas).
 let body = CGRect(x: 100, y: 100, width: 824, height: 824)
-let bodyPath = CGPath(roundedRect: body, cornerWidth: 185, cornerHeight: 185, transform: nil)
+let bodyPath = android ? CGPath(rect: CGRect(x: 0, y: 0, width: size, height: size), transform: nil)
+    : CGPath(roundedRect: body, cornerWidth: 185, cornerHeight: 185, transform: nil)
+if !monochrome {
 ctx.saveGState()
 ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: CGColor(gray: 0, alpha: 0.35))
 ctx.addPath(bodyPath)
@@ -35,8 +42,17 @@ ctx.restoreGState()
 ctx.saveGState()
 ctx.addPath(bodyPath)
 ctx.clip()
-ctx.drawLinearGradient(gradient(0x2CC7C1, teal), start: CGPoint(x: 0, y: 924), end: CGPoint(x: 0, y: 100), options: [])
+ctx.drawLinearGradient(gradient(0x2CC7C1, teal), start: CGPoint(x: 0, y: android ? size : 924), end: CGPoint(x: 0, y: android ? 0 : 100), options: [])
 ctx.restoreGState()
+}
+
+// An Android launcher shows only the middle of an adaptive icon's layer (a 66 dp circle of
+// 108 dp), so shrink the artwork into it.
+if android || monochrome {
+    ctx.translateBy(x: size / 2, y: size / 2)
+    ctx.scaleBy(x: 0.8, y: 0.8)
+    ctx.translateBy(x: -size / 2, y: -size / 2)
+}
 
 // Bulb glass: a circle narrowing into a neck.
 let center = CGPoint(x: 512, y: 560)
@@ -52,13 +68,14 @@ glass.addCurve(to: CGPoint(x: center.x + radius * cos(end), y: center.y + radius
 glass.closeSubpath()
 
 ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: CGColor(gray: 0, alpha: 0.25))
+if !monochrome { ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: CGColor(gray: 0, alpha: 0.25)) }
 ctx.addPath(glass)
 ctx.setFillColor(.white)
 ctx.fillPath()
 ctx.restoreGState()
 
 // Water filling the lower half of the bulb, with a wavy surface.
+if !monochrome {
 ctx.saveGState()
 ctx.addPath(glass)
 ctx.clip()
@@ -76,9 +93,11 @@ ctx.addPath(water)
 ctx.clip()
 ctx.drawLinearGradient(gradient(0x9BE7FA, 0x46AEEB), start: CGPoint(x: 0, y: 560), end: CGPoint(x: 0, y: 300), options: [])
 ctx.restoreGState()
+}
 
-// The feed mark, rising out of the water.
+// The feed mark, rising out of the water; cut out of the white bulb when monochrome.
 let origin = CGPoint(x: center.x - 120, y: 420)
+if monochrome { ctx.setBlendMode(.clear) }
 ctx.setFillColor(rgb(teal))
 ctx.fillEllipse(in: CGRect(x: origin.x - 34, y: origin.y - 34, width: 68, height: 68))
 ctx.setStrokeColor(rgb(teal))
@@ -90,7 +109,8 @@ for r: CGFloat in [120, 220] {
 }
 
 // Screw base: two bands, kept simple so it survives small sizes.
-ctx.setFillColor(rgb(0xD8DEEA))
+ctx.setBlendMode(.normal)
+ctx.setFillColor(monochrome ? .white : rgb(0xD8DEEA))
 for k in 0..<2 {
     let inset = CGFloat(k) * 8
     let band = CGRect(x: center.x - 92 + inset, y: 246 - CGFloat(k) * 56, width: 184 - inset * 2, height: 42)
