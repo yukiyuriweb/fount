@@ -91,13 +91,25 @@ final class GitHubSyncController {
                 let content = try await Task.detached(priority: .utility) {
                     try SyncSnapshot.encode(feeds: feeds, articles: articles)
                 }.value
-                let result = try await upload(content, credential: credential, gistID: gist?.id)
+                var replaced = false
+                let result: GitHubSync.Gist
+                do {
+                    result = try await upload(content, credential: credential, gistID: gist?.id)
+                } catch GitHubSync.SyncError.http(404) where gist != nil {
+                    // The saved Gist was deleted on GitHub: make a new one rather than failing on every sync.
+                    // An upload may have refreshed the token, so take the saved credential.
+                    replaced = true
+                    let current = try GitHubCredentialStore.load() ?? credential
+                    result = try await upload(content, credential: current, gistID: nil)
+                }
                 UserDefaults.standard.set(try JSONEncoder().encode(result), forKey: gistKey(for: credential.account))
 
                 NSApp.activate(ignoringOtherApps: true)
                 let alert = NSAlert()
                 alert.messageText = String(localized: "Fount synced to GitHub")
-                alert.informativeText = String(localized: "Copy the Gist URL to use on Android.")
+                alert.informativeText = replaced
+                    ? String(localized: "The previous Gist was not found on GitHub, so Fount created a new one. Copy its URL and save it again on Android.")
+                    : String(localized: "Copy the Gist URL to use on Android.")
                 alert.addButton(withTitle: String(localized: "OK"))
                 alert.addButton(withTitle: String(localized: "Copy Gist URL"))
                 if alert.runModal() == .alertSecondButtonReturn { copy(result.htmlUrl.absoluteString) }

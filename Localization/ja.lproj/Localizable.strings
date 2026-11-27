@@ -110,6 +110,7 @@
 "Signed in as %@. Open GitHub Sync again to upload your data." = "%@ としてログインしました。データを送信するには、「GitHub 同期」をもう一度開いてください。";
 "Fount synced to GitHub" = "GitHub に同期しました";
 "Copy the Gist URL to use on Android." = "Android で使うには、Gist の URL をコピーしてください。";
+"The previous Gist was not found on GitHub, so Fount created a new one. Copy its URL and save it again on Android." = "以前の Gist が GitHub に見つからなかったため、新しい Gist を作成しました。URL をコピーして、Android でもう一度保存してください。";
 "GitHub returned an unexpected response." = "GitHub から予期しない応答がありました。";
 "The GitHub verification code expired. Start the connection again." = "GitHub の確認コードの有効期限が切れました。もう一度接続してください。";
 "GitHub authorization was declined." = "GitHub での認可が拒否されました。";
