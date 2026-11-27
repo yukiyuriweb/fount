@@ -26,7 +26,7 @@
     "icons": "mkdir -p assets && swift ../scripts/make-icon.swift assets/icon.png --android && swift ../scripts/make-icon.swift assets/icon-monochrome.png --monochrome",
     "typecheck": "tsc --noEmit",
     "build:android": "npm run icons && EAS_NO_VCS=1 EAS_PROJECT_ROOT=\"$PWD\" npx eas-cli@latest build --platform android --profile preview",
-    "update": "npm run icons && EAS_NO_VCS=1 EAS_PROJECT_ROOT=\"$PWD\" npx eas-cli@latest update --channel preview --platform android"
+    "update": "npm run icons && EAS_NO_VCS=1 EAS_PROJECT_ROOT=\"$PWD\" npx eas-cli@latest update --channel preview --environment preview --platform android"
   },
   "private": true,
   "overrides": {
