@@ -11,6 +11,7 @@
     "expo-router": "~58.0.33",
     "expo-sqlite": "~58.0.18",
     "expo-status-bar": "~58.0.5",
+    "expo-updates": "~58.0.23",
     "react": "19.3.0",
     "react-native": "0.88.1",
     "react-native-safe-area-context": "~5.11.1",
@@ -24,7 +25,8 @@
     "start": "expo start",
     "icons": "mkdir -p assets && swift ../scripts/make-icon.swift assets/icon.png --android && swift ../scripts/make-icon.swift assets/icon-monochrome.png --monochrome",
     "typecheck": "tsc --noEmit",
-    "build:android": "npm run icons && EAS_NO_VCS=1 EAS_PROJECT_ROOT=\"$PWD\" npx eas-cli@latest build --platform android --profile preview"
+    "build:android": "npm run icons && EAS_NO_VCS=1 EAS_PROJECT_ROOT=\"$PWD\" npx eas-cli@latest build --platform android --profile preview",
+    "update": "npm run icons && EAS_NO_VCS=1 EAS_PROJECT_ROOT=\"$PWD\" npx eas-cli@latest update --channel preview --platform android"
   },
   "private": true,
   "overrides": {
