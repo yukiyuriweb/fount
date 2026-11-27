@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = Store()
     private var controller: MainWindowController?
     private lazy var readingActivity = ReadingActivityController()
+    private lazy var githubSync = GitHubSyncController(store: store)
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private let loginItem = NSMenuItem(title: String(localized: "Open at Login"), action: #selector(toggleOpenAtLogin(_:)), keyEquivalent: "")
@@ -55,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         readingActivity.showWindow(sender)
     }
 
+    @objc private func showGitHubSync(_ sender: Any?) {
+        guard let window = controller?.window else { return }
+        openWindow(nil)
+        githubSync.show(in: window)
+    }
+
     // MARK: Menu bar
 
     private func setUpStatusItem() {
@@ -67,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let refresh = menu.addItem(withTitle: String(localized: "Refresh"), action: #selector(MainWindowController.refresh(_:)), keyEquivalent: "")
         refresh.target = controller
         menu.addItem(withTitle: String(localized: "Reading Activity…"), action: #selector(showReadingActivity(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: String(localized: "GitHub Sync…"), action: #selector(showGitHubSync(_:)), keyEquivalent: "").target = self
         menu.addItem(.separator())
         loginItem.target = self
         menu.addItem(loginItem)
@@ -154,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fileMenu.addItem(withTitle: String(localized: "Import OPML…"), action: #selector(MainWindowController.importOPML(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "Export OPML…"), action: #selector(MainWindowController.exportOPML(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "Refresh"), action: #selector(MainWindowController.refresh(_:)), keyEquivalent: "r")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: String(localized: "GitHub Sync…"), action: #selector(showGitHubSync(_:)), keyEquivalent: "").target = self
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: String(localized: "Close Window"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         main.addItem(withTitle: "", action: nil, keyEquivalent: "").submenu = fileMenu
